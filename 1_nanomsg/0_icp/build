@@ -1,7 +1,0 @@
-#!/bin/sh
-
-echo "+++ client.c"
-gcc client.c -o client -lnanomsg
-echo "+++ server.c"
-gcc server.c -o server -lnanomsg
-
