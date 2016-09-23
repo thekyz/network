@@ -1,7 +1,9 @@
 #!/bin/bash
 
-echo "Open '127.0.0.1:8000' in a web browser to see the slides ..."
+_port=80
+
+echo "Open '127.0.0.1:${_port}' in a web browser to see the slides ..."
 echo ""
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
-python -m SimpleHTTPServer
+sudo python -m SimpleHTTPServer ${_port}
