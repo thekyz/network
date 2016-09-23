@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    //TODO: in a real program, you should check all server founds !
+    //TODO: check all server founds !
 
     socket_fd = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
     if  (socket_fd < 0) {
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     printf("[C] Connected to server !\n");
 
     int bytes = send(socket_fd, "hello", 6, 0);
-    //TODO: in a real program, you should check wether all bytes were sent !
+    //TODO: check wether all bytes were sent !
     if (bytes < 0) {
         fprintf(stderr, "[C] send error: %s\n", strerror(errno));
         freeaddrinfo(server_info);

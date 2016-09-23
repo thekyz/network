@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     printf("[S] <<< %s\n", buffer);
 
     bytes = send(client_socket, "world", 6, 0);
-    //TODO: in a real program, you should check wether all bytes were sent !
+    //TODO: check wether all bytes were sent !
     if (bytes < 0) {
         fprintf(stderr, "[S] send error: %s\n", strerror(errno));
         freeaddrinfo(server_info);
