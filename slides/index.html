@@ -34,7 +34,7 @@
           <h2>Let's see ...</h2>
           <ol>
             <li>Sockets</li>
-            <li><b>nano</b>msg</li>
+            <li>zeromq</li>
             <li>Wireshark</li>
           </ol>
         </section>
@@ -73,7 +73,7 @@ int getaddrinfo(const char *node,     // e.g. IP or DNS resolvable name
 #include &lt;sys/types.h&gt;
 #include &lt;sys/socket.h&gt;
 
-int socket(int domain, int type, int protocol); 
+int socket(int domain, int type, int protocol);
             </code></pre>
           </section>
           <section>
@@ -97,7 +97,7 @@ int bind(int sockfd, struct sockaddr *my_addr, int addrlen);
 #include &lt;sys/types.h&gt;
 #include &lt;sys/socket.h&gt;
 
-int connect(int sockfd, struct sockaddr *serv_addr, int addrlen); 
+int connect(int sockfd, struct sockaddr *serv_addr, int addrlen);
             </code></pre>
           </section>
           <section>
@@ -106,7 +106,7 @@ int connect(int sockfd, struct sockaddr *serv_addr, int addrlen);
               <small>Will somebody please call me?</small>
             </p>
             <pre><code class="hljs" data-trim data-noescape contenteditable>
-int listen(int sockfd, int backlog); 
+int listen(int sockfd, int backlog);
             </code></pre>
           </section>
           <section>
@@ -118,7 +118,7 @@ int listen(int sockfd, int backlog);
 #include &lt;sys/types.h&gt;
 #include &lt;sys/socket.h&gt;
 
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen); 
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
             </code></pre>
           </section>
           <section>
@@ -129,7 +129,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
             <pre><code class="hljs" data-trim data-noescape contenteditable>
 #include &lt;sys/socket.h&gt;
 
-int send(int sockfd, const void *msg, int len, int flags); 
+int send(int sockfd, const void *msg, int len, int flags);
 
 int recv(int sockfd, void *buf, int len, int flags);
             </code></pre>
@@ -157,11 +157,11 @@ int recvfrom(int sockfd, void *buf, int len, unsigned int flags,
             <pre><code class="hljs" data-trim data-noescape contenteditable>
 #include &lt;unistd.h&gt;
 
-int close(int sockfd); 
+int close(int sockfd);
 
 #include &lt;sys/socket.h&gt;
 
-int shutdown(int sockfd, int how); 
+int shutdown(int sockfd, int how);
             </code></pre>
           </section>
           <section>
@@ -172,7 +172,7 @@ int shutdown(int sockfd, int how);
             <pre><code class="hljs" data-trim data-noescape contenteditable>
 #include &lt;sys/socket.h&gt;
 
-int getpeername(int sockfd, struct sockaddr *addr, int *addrlen); 
+int getpeername(int sockfd, struct sockaddr *addr, int *addrlen);
             </code></pre>
           </section>
           <section>
@@ -183,14 +183,27 @@ int getpeername(int sockfd, struct sockaddr *addr, int *addrlen);
             <pre><code class="hljs" data-trim data-noescape contenteditable>
 #include &lt;unistd.h&gt;
 
-int gethostname(char *hostname, size_t size); 
+int gethostname(char *hostname, size_t size);
+            </code></pre>
+          </section>
+          <section>
+            <p>
+              Let's play with netcat!<br />
+              <small>who does NOT like to be confused with <img src="img/tiny_nyan_cat.gif" />!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+# server
+nc -l <port>
+
+# client
+nc <host> <port>
             </code></pre>
           </section>
         </section>
 
         <section>
           <section data-transition="slide" data-background="#3cb590" data-background-transition="zoom">
-            <h2><b>nano</b>msg</h2>
+            <h2>zeromq</h2>
             <p>
               Let's do something nice !
             </p>
