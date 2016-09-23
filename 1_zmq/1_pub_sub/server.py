@@ -9,7 +9,7 @@ def main():
     socket = context.socket(zmq.PUB)
     socket.bind('tcp://*:5556')
     
-    print('[S] Listening ...')
+    print('[S] Publishing ...')
     
     while True:
         suit = random.randrange(0, 3)

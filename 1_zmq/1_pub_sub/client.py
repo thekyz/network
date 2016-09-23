@@ -3,7 +3,7 @@ import zmq
 def main():
     context = zmq.Context()
     
-    print('[C] Connecting to server ...')
+    print('[C] Suscribing to server ...')
     socket = context.socket(zmq.SUB)
     socket.connect('tcp://localhost:5556')
     
