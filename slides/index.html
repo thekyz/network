@@ -33,10 +33,10 @@
         <section>
           <h2>Let's see ...</h2>
           <ul>
-            <li>Socket theory</li>
-            <li>Socket fun</li>
+            <li>socket theory</li>
+            <li>socket fun</li>
             <li>zeromq</li>
-            <li>Wireshark</li>
+            <li>wireshark</li>
           </ul>
         </section>
 
@@ -55,12 +55,12 @@
           <section>
             <h2>So what's a socket anyway ?</h2>
             <ul>
-              <li>An endpoint of a connection across a computer network</li>
-              <li>A way to speak to other programs using standard unix file descriptors</li>
+              <li>an endpoint of a connection across a computer network</li>
+              <li>a way to speak to other programs using standard unix file descriptors</li>
             </ul>
             <aside class="notes">
               <ul>
-                <li>Multiple types of sockets (internet, unix domain, X25)</li>
+                <li>multiple types of sockets (internet, unix domain, netlink and X25)</li>
                 <li>a socket is a file descriptor in the end</li>
               </ul>
             </aside>
@@ -70,19 +70,19 @@
             <h2>the two types of internet sockets</h2>
             <p class="fragment" data-fragment-index="3">(ok I lied)</p>
             <ul>
-              <li class="fragment" data-fragment-index="1">Stream (SOCK_STREAM)
+              <li class="fragment" data-fragment-index="1">stream (SOCK_STREAM)
                 <ul>
-                  <li>Connected (TCP)</li>
-                  <li>Reliable and ordered but slow</li>
+                  <li>connected (TCP)</li>
+                  <li>reliable and ordered but slow</li>
                 </ul>
               </li>
-              <li class="fragment" data-fragment-index="2">Datagram (SOCK_DGRAM)
+              <li class="fragment" data-fragment-index="2">datagram (SOCK_DGRAM)
                 <ul>
-                  <li>Connectionless (UDP)</li>
-                  <li>Unreliable and unordered but fast</li>
+                  <li>connectionless (UDP)</li>
+                  <li>unreliable and unordered but fast</li>
                 </ul>
               </li>
-              <li class="fragment" data-fragment-index="3">Raw (RAW_SOCKET)</li>
+              <li class="fragment" data-fragment-index="3">raw (RAW_SOCKET)</li>
             </ul>
             <aside class="notes">
               <ul>
@@ -96,13 +96,19 @@
           <section>
             <h2>a brief note on unix domain sockets</h2>
             <ul>
-              <li>An endpoint of a connection across a computer network</li>
-              <li>A way to speak to other programs using standard unix file descriptors</li>
+              <li>exist only on local computer
+                <ul>
+                  <li>secure: cannot be accessed remotely</li>
+                  <li>do not require a properly configured network</li>
+                </ul>
+              </li>
+              <li>are ipc secure: file permissions can be configured on the socket</li>
+              <li>support both connected and connectionless modes</li>
+              <li>use the same API as internet sockets</li>
             </ul>
             <aside class="notes">
               <ul>
-                <li>Multiple types of sockets (internet, unix domain, X25)</li>
-                <li>a socket is a file descriptor in the end</li>
+                <li>we will see some examples</li>
               </ul>
             </aside>
           </section>
@@ -110,10 +116,10 @@
           <section>
             <h2>network stuff</h2>
             <ul>
-              <li>Application layer <span class="fragment">(telnet, ftp, ...)</span></li>
-              <li>Host-to-host transport layer <span class="fragment">(TCP, UDP)</span></li>
-              <li>Internet layer <span class="fragment">(IP and routing)</span></li>
-              <li>Network access layer <span class="fragment">(Ethernet, wi-fi, ...)</span></li>
+              <li>application layer <span class="fragment">(telnet, ftp, ...)</span></li>
+              <li>host-to-host transport layer <span class="fragment">(TCP, UDP)</span></li>
+              <li>internet layer <span class="fragment">(IP and routing)</span></li>
+              <li>network access layer <span class="fragment">(Ethernet, wi-fi, ...)</span></li>
             </ul>
             <aside class="notes">
               <ul>
@@ -135,10 +141,13 @@ nc -l &lt;port&gt;
 
 # client
 nc &lt;host&gt; &lt;port&gt;
+
+# monitoring
+netstat -c -t -a
             </code></pre>
             <aside class="notes">
               <ul>
-                <li>play with netcat client/server</li>
+                <li>play with netcat client/server and netchat without looking at code</li>
                 <li>use 0_netchat</li>
               </ul>
             </aside>
@@ -349,7 +358,7 @@ if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0
 if (setsockopt(listener, SOL_SOCKET, SO_REUSEPORT, &(int){ 1 }, sizeof(int)) < 0) {
     perror("setsockopt");
     exit(-1);
-} 
+}
             </code></pre>
             <aside class="notes">
               <ul>
@@ -527,7 +536,7 @@ int close(int sockfd);
 
 #include &lt;sys/socket.h&gt;
 
-// how is either: 
+// how is either:
 // 0 - receives are blocked
 // 1 - sends are blocked
 // 2 - receives and sends are blocked (like close() but without actually "closing" the fd)
