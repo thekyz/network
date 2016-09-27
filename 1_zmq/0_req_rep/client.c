@@ -6,7 +6,7 @@
 int main(void)
 {
     void *ctx = zmq_ctx_new();
-    
+
     printf("[C] Connecting to server ...\n");
     void *requester = zmq_socket(ctx, ZMQ_REQ);
     zmq_connect(requester, "tcp://localhost:5555");
