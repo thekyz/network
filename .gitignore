@@ -38,3 +38,4 @@ build
 clean
 client
 server
+zmq_lib
