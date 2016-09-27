@@ -14,7 +14,9 @@ int main(void)
     zmq_send(requester, "hello", 5, 0);
 
     char message[10];
-    zmq_recv(requester, message, 10, 0);
+    int len = zmq_recv(requester, message, 10, 0);
+    message[len] = 0;
+
     printf("[C] << %s\n", message);
 
     return 0;
