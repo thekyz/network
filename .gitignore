@@ -39,3 +39,5 @@ clean
 client
 server
 zmq_lib
+dealer
+player
