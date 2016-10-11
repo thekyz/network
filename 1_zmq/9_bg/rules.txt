@@ -1,0 +1,35 @@
+The object of blackjack is to beat the dealer ! In order to do that, the player must :
+- not bust (go over 21)
+- outscore the dealer or have the dealer bust
+
+1. may be played with one to eight decks of 52 cards
+
+2. aces may be counted as 1 or 11 points, 2 to 9 according to pip value, and tens and face cards count as ten points
+
+3. the value of a hand is the sum of the points values of the individual cards
+
+4. a "blackjack" is the highest hand, consisting of an ace and any 10-point card, and it outranks all other 21-point hands
+
+5. after the bets, the dealer will give two cards to each player and two cards to himself; one of the dealer cards is dealt face up; the facedown card is called the "hole card" 
+
+6. if the dealer has an ace showing, he will offer a side bet called "insurance"; this side wager pays 2 to 1 if the dealer's hole card is any 10 point card; insurance is optional and may bot exceed half the original wager
+
+7. if the dealer has an ace or a ten showing, after offering insurance in case of an ace, then he will peek at his facedown card to see if he has a blackjack; if he does, then he will turn it over immediately
+
+8. if the dealer does have a blackjack, then all wagers (except insurance) will lose, unless the player also has a blackjack, which will result in a push; the dealer will resolve insurance wagers at this time
+
+9. play begins with the player to the dealer's left; here are the choices available to the player:
+- stand (do nothign)
+- hit (draw another card, and more if he wishes; if this card causes the player to exceed 21, then he loses)
+- double (player doubles his bet and gets one (and only one) more card)
+- split (if the player has a pair or any two 10-point cards, then he may double his bet and separate his cards into two individual hands; the dealer will automatically give each hand a second card; then the player may hit, stand or double normally; however when splitting aces, each ace gets only one card; if the player gets a ten and ace after splitting, then it counts as 21 points, not a blackjack; the player may keep re-splitting up to a total of four hands)
+- surrender (the player forfeits half his wager, keeping the other half, and does not play out his hand; only available on the initial two cards)
+
+10. after each player has had his turn, the dealer will turn over his hole card; if the dealer has 16 or less, then he will draw another card; dealer also hits on soft 17 (an ace and any number of cards totalling six points)
+
+11. if the dealer busts, then any player who didn't already bust wins
+
+12. if the dealer does not bust, then the higher point total between the player and dealer will win
+
+13. winning wagers pay even money, except a winning player blackjack which pays 3 to 2
+
