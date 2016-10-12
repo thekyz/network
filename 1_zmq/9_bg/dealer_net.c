@@ -15,7 +15,7 @@ int net_init(struct _net *net)
 
     net->zmq_ctx = zmq_ctx_new();
     net->table = zmq_socket(net->zmq_ctx, ZMQ_PUB);
-    if (zmq_connect(net->table, "tcp://localhost:" DEALER_TABLE_PORT) != 0) {
+    if (zmq_bind(net->table, "tcp://*:" DEALER_TABLE_PORT) != 0) {
         return -1;
     }
 
@@ -71,6 +71,11 @@ static int _create_timer(struct _net *net, int ms, bool periodic, net_timer_cb c
     assert(net);
     assert(cb);
 
+    if (ms == 0 && periodic) {
+        fprintf(stderr, "[D] Error: must have a timeout for periodic timers!\n");
+        return -1;
+    }
+
     struct _timer *timer = (struct _timer *)malloc(sizeof(struct _net));
     if (timer == NULL) {
         fprintf(stderr, "[D] Error while allocating memory for timer!\n");
@@ -86,6 +91,11 @@ static int _create_timer(struct _net *net, int ms, bool periodic, net_timer_cb c
 
     timer->value.it_value.tv_sec = ms / 1000;
     timer->value.it_value.tv_nsec = (ms % 1000) * 1000000;
+
+    if (ms == 0) {
+        timer->value.it_value.tv_nsec = 1;
+    }
+
     if (periodic) {
         timer->value.it_interval.tv_sec = ms / 1000;
         timer->value.it_interval.tv_nsec = (ms % 1000) * 1000000;
@@ -119,6 +129,18 @@ int net_timeout(struct _net *net, int timeout, net_timer_cb cb, void *ctx)
 int net_periodic(struct _net *net, int period, net_timer_cb cb, void *ctx)
 {
     return _create_timer(net, period, true, cb, ctx);
+}
+
+int net_send(struct _net *net, const char *filter, const char *msg)
+{
+    char buffer[DEALER_MAX_MSG_LEN];
+
+    if (strncmp(filter, DEALER_TABLE_FILTER_MSG, strlen(DEALER_TABLE_FILTER_MSG)) == 0) {
+        printf("[D] msg >> %s\n", msg);
+    }
+
+    snprintf(buffer, DEALER_MAX_MSG_LEN - 1, "%s%s", filter, msg);
+    return zmq_send(net->table, buffer, strlen(buffer) + 1, 0);
 }
 
 static void _on_timer(struct _net *net, struct _timer *timer, uint64_t nhits)
@@ -180,18 +202,14 @@ int net_loop(struct _net *net, void *ctx)
             int len = zmq_recv(net->lobby, msg, sizeof(msg), 0);
             msg[len] = '\0';
 
-            switch (msg[0]) {
-                case DEALER_LOBBY_PLAYER_CONNECTED:
-                    net->on_connect(&msg[1], ctx);
-                    break;
+            /*printf("[D] lobby << '%s'\n", msg);*/
 
-                case DEALER_LOBBY_PLAYER_DISCONNECTED:
-                    net->on_disconnect(&msg[1], ctx);
-                    break;
-
-                case DEALER_LOBBY_PLAYER_READY:
-                    net->on_ready(&msg[1], ctx);
-                    break;
+            if (strncmp(msg, DEALER_LOBBY_PLAYER_CONNECTED, strlen(DEALER_LOBBY_PLAYER_CONNECTED)) == 0) {
+                net->on_connect(&msg[strlen(DEALER_LOBBY_PLAYER_CONNECTED)], ctx);
+            } else if (strncmp(msg, DEALER_LOBBY_PLAYER_DISCONNECTED, strlen(DEALER_LOBBY_PLAYER_DISCONNECTED)) == 0) {
+                net->on_disconnect(&msg[strlen(DEALER_LOBBY_PLAYER_DISCONNECTED)], ctx);
+            } else if (strncmp(msg, DEALER_LOBBY_PLAYER_READY, strlen(DEALER_LOBBY_PLAYER_READY)) == 0) {
+                net->on_ready(&msg[strlen(DEALER_LOBBY_PLAYER_READY)], ctx);
             }
         }
 

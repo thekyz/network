@@ -4,7 +4,10 @@
 #include <assert.h>
 #include <time.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <malloc.h>
 
+#include "list.h"
 #include "dealer_game.h"
 
 #define _CARD(__d, __did, __sid, __rid)                 \
@@ -56,5 +59,76 @@ static void _init_deck(struct _deck *deck)
 static inline struct _card *_deal_one(struct _deck *deck)
 {
     return &deck->cards[deck->hit_id++];
+}
+
+static struct _player *_get_player_from_name(struct _game *game, const char *name)
+{
+    struct _player *player = NULL;
+    list_foreach(&game->players, player) {
+        if (strncmp(player->name, name, MAX_PLAYER_NAME_LEN) == 0) {
+            break;
+        }
+    }
+
+    return player;
+}
+
+void game_init(struct _game *game)
+{
+    list_init(&game->players);
+}
+
+bool game_are_players_ready(struct _game *game)
+{
+    printf("[D] %d players connected ...\n", list_count(&game->players));
+    struct _player *player;
+    list_foreach(&game->players, player) {
+        if (player->ready == false) {
+            printf("[D] %s is not ready yet\n", player->name);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void game_start(struct _game *game)
+{
+
+}
+
+void game_remove_player(struct _game *game, const char *name)
+{
+    struct _player *player = _get_player_from_name(game, name);
+    if (player == NULL) {
+        fprintf(stderr, "[D] Could not find player %s (delete) ...\n", name);
+        return;
+    }
+
+    list_delete((list *)player);
+    free(player);
+}
+
+void game_ready_player(struct _game *game, const char *name)
+{
+    struct _player *player = _get_player_from_name(game, name);
+    if (player == NULL) {
+        fprintf(stderr, "[D] Could not find player %s (ready) ...\n", name);
+        return;
+    }
+
+    player->ready = true;
+}
+
+void game_add_player(struct _game *game, const char *name)
+{
+    struct _player *player = (struct _player *)calloc(1, sizeof(struct _player));
+    if (player == NULL) {
+        fprintf(stderr, "[D] Could not create player %s (%s) ...\n", name, strerror(errno));
+        return;
+    }
+
+    snprintf(player->name, MAX_PLAYER_NAME_LEN - 1, "%s", name); 
+    list_add_tail(&game->players, &player->node);
 }
 

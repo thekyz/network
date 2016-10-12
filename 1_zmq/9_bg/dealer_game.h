@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#include "list.h"
+
 struct _card {
     int deck;
     int rank;
@@ -13,12 +15,14 @@ struct _hand {
     int ncards;
 };
 
+#define MAX_PLAYER_NAME_LEN 32
+
 struct _player {
-    struct _player *next;
-    struct _player *prev;
+    list node;
     struct _hand hands[4];
     int nhands;    
-    char name[256];
+    char name[MAX_PLAYER_NAME_LEN];
+    bool ready;
     bool playing;
     int wager;
     int insurance;
@@ -36,7 +40,13 @@ struct _deck {
 
 struct _game {
     struct _deck deck;
-    struct _player *player_node;
+    list players;
     int current_player_id;
 };
+
+void game_init(struct _game *game);
+bool game_are_players_ready(struct _game *game);
+void game_remove_player(struct _game *game, const char *name);
+void game_ready_player(struct _game *game, const char *name);
+void game_add_player(struct _game *game, const char *name);
 

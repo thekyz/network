@@ -9,9 +9,16 @@
 
 #define DEALER_LOBBY_MSG_LEN            128
 
-#define DEALER_LOBBY_PLAYER_CONNECTED       'c'
-#define DEALER_LOBBY_PLAYER_DISCONNECTED    'd'
-#define DEALER_LOBBY_PLAYER_READY           'r'
+#define DEALER_LOBBY_PLAYER_CONNECTED       "#CONN#"
+#define DEALER_LOBBY_PLAYER_DISCONNECTED    "#DISC#"
+#define DEALER_LOBBY_PLAYER_READY           "#READY#"
+
+#define DEALER_TABLE_FILTER_MSG             "#MSG#"
+#define DEALER_TABLE_FILTER_GAME            "#GAME#"
+
+#define DEALER_TABLE_GAME_BET               "+BET+"
+
+#define DEALER_MAX_MSG_LEN              256
 
 typedef void (*net_timer_cb)(void *ctx);
 typedef void (*net_client_cb)(char *client, void *ctx);
@@ -28,7 +35,7 @@ struct _net {
     void *zmq_ctx;
     void *table;
     void *lobby;
-    list timers; 
+    list timers;
     bool timer_refresh;
     net_client_cb on_connect;
     net_client_cb on_disconnect;
@@ -38,5 +45,6 @@ struct _net {
 int net_init(struct _net *net);
 int net_timeout(struct _net *net, int timeout, net_timer_cb cb, void *ctx);
 int net_periodic(struct _net *net, int period, net_timer_cb cb, void *ctx);
+int net_send(struct _net *net, const char *filter, const char *msg);
 int net_loop(struct _net *net, void *ctx);
 

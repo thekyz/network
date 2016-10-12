@@ -1,10 +1,15 @@
 #pragma once
 
+#include <assert.h>
 #include <stdbool.h>
 
 #define __UID2(__a, __b)    __a ## __b
 #define __UID1(__a, __b)    __UID2(__a, __b)
 #define __UID               __UID1(__it__, __LINE__)
+
+#define list_foreach_noit(__l,__lp)                                                                 \
+    __typeof__(__lp) UID;                                                                           \
+    for (__lp = (__l)->next; UID = __lp ? __lp->next : NULL, __lp && (__lp != (__l)); __lp = UID)
 
 #define list_foreach(__l,__lp)                                                                      \
     __typeof__(__lp) UID;                                                                           \
@@ -66,10 +71,12 @@ static inline void list_delete(list *entry)
 
 static inline int list_count(list *l)
 {
+    assert(l);
+
     int count = 0;
 
     list *lp = NULL;
-    list_foreach(l, lp) {
+    list_foreach_noit(l, lp) {
         count++;
     }
 
