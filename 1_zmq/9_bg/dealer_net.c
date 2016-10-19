@@ -133,13 +133,13 @@ int net_periodic(struct _net *net, int period, net_timer_cb cb, void *ctx)
 
 int net_send(struct _net *net, const char *filter, const char *msg)
 {
-    char buffer[DEALER_MAX_MSG_LEN];
+    char buffer[MAX_MSG_LEN];
 
-    if (strncmp(filter, DEALER_TABLE_FILTER_MSG, strlen(DEALER_TABLE_FILTER_MSG)) == 0) {
+    if (strncmp(filter, F_MSG, strlen(F_MSG)) == 0) {
         printf("[D] msg >> %s\n", msg);
     }
 
-    snprintf(buffer, DEALER_MAX_MSG_LEN - 1, "%s%s", filter, msg);
+    snprintf(buffer, MAX_MSG_LEN - 1, "%s%s", filter, msg);
     return zmq_send(net->table, buffer, strlen(buffer) + 1, 0);
 }
 
@@ -197,19 +197,26 @@ int net_loop(struct _net *net, void *ctx)
         }
 
         if (items[0].revents & ZMQ_POLLIN) {
-            char msg[DEALER_LOBBY_MSG_LEN];
+            char msg[MAX_MSG_LEN];
             memset(&msg, 0, sizeof(msg));
             int len = zmq_recv(net->lobby, msg, sizeof(msg), 0);
             msg[len] = '\0';
 
             /*printf("[D] lobby << '%s'\n", msg);*/
 
-            if (strncmp(msg, DEALER_LOBBY_PLAYER_CONNECTED, strlen(DEALER_LOBBY_PLAYER_CONNECTED)) == 0) {
-                net->on_connect(&msg[strlen(DEALER_LOBBY_PLAYER_CONNECTED)], ctx);
-            } else if (strncmp(msg, DEALER_LOBBY_PLAYER_DISCONNECTED, strlen(DEALER_LOBBY_PLAYER_DISCONNECTED)) == 0) {
-                net->on_disconnect(&msg[strlen(DEALER_LOBBY_PLAYER_DISCONNECTED)], ctx);
-            } else if (strncmp(msg, DEALER_LOBBY_PLAYER_READY, strlen(DEALER_LOBBY_PLAYER_READY)) == 0) {
-                net->on_ready(&msg[strlen(DEALER_LOBBY_PLAYER_READY)], ctx);
+          #define IS_MSG(__m) strncmp(msg, __m, strlen(__m)) == 0
+            if (IS_MSG(A_CONNECTED)) {
+                net->on_connect(&msg[strlen(A_CONNECTED)], ctx);
+            } else if (IS_MSG(A_DISCONNECTED)) {
+                net->on_disconnect(&msg[strlen(A_DISCONNECTED)], ctx);
+            } else if (IS_MSG(A_READY)) {
+                net->on_ready(&msg[strlen(A_READY)], ctx);
+            } else if (IS_MSG(A_PLAY)) {
+                char *split = &msg[strlen(A_PLAY)];
+                char *player = strsep(&split, " ");
+                char *action = strsep(&split, " ");
+                char *option = strsep(&split, " ");
+                net->on_game_action(player, action, option, ctx);
             }
         }
 

@@ -10,8 +10,10 @@ struct _card {
     int suit;
 };
 
+#define MAX_CARDS_IN_HAND 8
+
 struct _hand {
-    struct _card cards[8];
+    struct _card *cards[MAX_CARDS_IN_HAND];
     int ncards;
 };
 
@@ -45,8 +47,16 @@ struct _game {
 };
 
 void game_init(struct _game *game);
-bool game_are_players_ready(struct _game *game);
-void game_remove_player(struct _game *game, const char *name);
-void game_ready_player(struct _game *game, const char *name);
-void game_add_player(struct _game *game, const char *name);
+
+void game_init_deck();
+char *game_card2str(struct _card *card, char *buffer);
+char *game_score2str(struct _hand *hand, char *buffer);
+void game_player_first_deal(const char *name);
+int game_place_bet(const char *name, const char *bet);
+bool game_are_bets_placed();
+bool game_are_players_ready();
+void game_remove_player(const char *name);
+void game_ready_player(const char *name);
+void game_ready_players_playing();
+void game_add_player(const char *name);
 

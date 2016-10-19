@@ -29,9 +29,58 @@ static const char *const gsc_suits[] = {
     "clubs", "diamonds", "hearts", "spades"
 };
 
+static struct _game *game = NULL;
 
-static void _init_deck(struct _deck *deck)
+char *game_card2str(struct _card *card, char *buffer)
 {
+    sprintf(buffer, "%s of %s", gsc_ranks[card->rank], gsc_suits[card->suit]);
+    return buffer;
+}
+
+char *game_score2str(struct _hand *hand, char *buffer)
+{
+    int score_offset = 0;
+    int score = 0;
+    bool has_ace = false;
+    int i;
+    for (i = 0; i < MAX_CARDS_IN_HAND; i++) {
+        struct _card *card_it = hand->cards[i];
+
+        if (card_it == NULL) {
+            break;
+        }
+
+        /* Aces count for 1 or 11, no need to account for more than one though as 2 would give a score of more 22 at least */
+        if (card_it->rank == 0) {
+            has_ace = true;
+        }
+
+        if (card_it->rank >= 9) {
+            score += 10;
+        } else {
+            score += card_it->rank + 1;
+        }
+        /*score_offset += sprintf(&buffer[score_offset], "{%d} ", card_it->rank);*/
+    }
+
+    /* default score */
+    score_offset += sprintf(&buffer[score_offset], "%d", score);
+    if (has_ace) {
+        /* score for ace combination */
+        score_offset += sprintf(&buffer[score_offset], " | %d", score + 10);
+
+        if (score + 10 == 21 && i == 2)  {
+            score_offset += sprintf(&buffer[score_offset], " BLACKJACK!");
+        }
+    }
+
+    return buffer;
+}
+
+void game_init_deck()
+{
+    struct _deck *deck = &game->deck;
+
     int deck_it, rank_it, suit_it;
     for (deck_it = 0; deck_it < NDECKS ; deck_it++) {
         for (suit_it = 0; suit_it < NSUITS; suit_it++) {
@@ -45,6 +94,7 @@ static void _init_deck(struct _deck *deck)
 
     deck->hit_id = 0;
 
+    srand(time(NULL));
     int card_it;
     for (card_it = DECK_SIZE - 1;  card_it > 0; card_it--) {
         struct _card temp;
@@ -61,7 +111,7 @@ static inline struct _card *_deal_one(struct _deck *deck)
     return &deck->cards[deck->hit_id++];
 }
 
-static struct _player *_get_player_from_name(struct _game *game, const char *name)
+static struct _player *_get_player_from_name(const char *name)
 {
     struct _player *player = NULL;
     list_foreach(&game->players, player) {
@@ -73,14 +123,67 @@ static struct _player *_get_player_from_name(struct _game *game, const char *nam
     return player;
 }
 
-void game_init(struct _game *game)
+void game_player_first_deal(const char *name)
 {
+    struct _player *player = _get_player_from_name(name);
+    assert(player);
+
+    player->hands[0].cards[0] = _deal_one(&game->deck);
+    player->hands[0].cards[1] = _deal_one(&game->deck);
+}
+
+void game_init(struct _game *g)
+{
+    game = g;
     list_init(&game->players);
 }
 
-bool game_are_players_ready(struct _game *game)
+int game_place_bet(const char *name, const char *bet)
 {
-    printf("[D] %d players connected ...\n", list_count(&game->players));
+    struct _player *player = _get_player_from_name(name);
+    if (player == NULL) {
+        fprintf(stderr, "[D] Could not place bet for unknown player %s.\n", name);
+        return -1;
+    }
+
+    if (player->playing == false) {
+        fprintf(stderr, "[D] Could not place bet for not playing player %s.\n", name);
+        return -1;
+    }
+
+    player->wager = strtol(bet, NULL, 0);
+
+    return 0;
+}
+
+bool game_are_bets_placed()
+{
+    struct _player *player;
+    list_foreach(&game->players, player) {
+        if (player->wager == 0) {
+            printf("[D] %s has not bet yet\n", player->name);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void game_ready_players_playing()
+{
+    struct _player *player;
+    list_foreach(&game->players, player) {
+        if (player->ready) {
+            printf("[D] %s is playing\n", player->name);
+            player->playing = true;
+            player->ready = false;
+        }
+    }
+}
+
+bool game_are_players_ready()
+{
+    /*printf("[D] %d players connected ...\n", list_count(&game->players));*/
     struct _player *player;
     list_foreach(&game->players, player) {
         if (player->ready == false) {
@@ -92,14 +195,9 @@ bool game_are_players_ready(struct _game *game)
     return true;
 }
 
-void game_start(struct _game *game)
+void game_remove_player(const char *name)
 {
-
-}
-
-void game_remove_player(struct _game *game, const char *name)
-{
-    struct _player *player = _get_player_from_name(game, name);
+    struct _player *player = _get_player_from_name(name);
     if (player == NULL) {
         fprintf(stderr, "[D] Could not find player %s (delete) ...\n", name);
         return;
@@ -109,9 +207,9 @@ void game_remove_player(struct _game *game, const char *name)
     free(player);
 }
 
-void game_ready_player(struct _game *game, const char *name)
+void game_ready_player(const char *name)
 {
-    struct _player *player = _get_player_from_name(game, name);
+    struct _player *player = _get_player_from_name(name);
     if (player == NULL) {
         fprintf(stderr, "[D] Could not find player %s (ready) ...\n", name);
         return;
@@ -120,7 +218,7 @@ void game_ready_player(struct _game *game, const char *name)
     player->ready = true;
 }
 
-void game_add_player(struct _game *game, const char *name)
+void game_add_player(const char *name)
 {
     struct _player *player = (struct _player *)calloc(1, sizeof(struct _player));
     if (player == NULL) {

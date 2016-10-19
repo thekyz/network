@@ -4,24 +4,28 @@
 
 #include "list.h"
 
-#define DEALER_LOBBY_PORT               "29001"
-#define DEALER_TABLE_PORT               "29002"
+#define DEALER_LOBBY_PORT   "29001"
+#define DEALER_TABLE_PORT   "29002"
 
-#define DEALER_LOBBY_MSG_LEN            128
+#define MAX_MSG_LEN         256
 
-#define DEALER_LOBBY_PLAYER_CONNECTED       "#CONN#"
-#define DEALER_LOBBY_PLAYER_DISCONNECTED    "#DISC#"
-#define DEALER_LOBBY_PLAYER_READY           "#READY#"
+#define A_CONNECTED         "#CONN#"
+#define A_DISCONNECTED      "#DISC#"
+#define A_READY             "#READY#"
+#define A_PLAY              "#PLAY#"
 
-#define DEALER_TABLE_FILTER_MSG             "#MSG#"
-#define DEALER_TABLE_FILTER_GAME            "#GAME#"
+#define F_MSG               "#MSG#"
+#define F_GAME              "#GAME#"
 
-#define DEALER_TABLE_GAME_BET               "+BET+"
+#define G_INIT              "+INIT+"
+#define G_COUNTDOWN         "+COUNTDOWN+"
+#define G_BET               "+BET+"
 
-#define DEALER_MAX_MSG_LEN              256
+#define IS_EQ(__a, __b)     (strncmp(__a, __b, strlen(__b)) == 0)
 
 typedef void (*net_timer_cb)(void *ctx);
 typedef void (*net_client_cb)(char *client, void *ctx);
+typedef void (*net_action_cb)(char *client, char *action, char *option, void *ctx);
 
 struct _timer {
     list node;
@@ -40,6 +44,7 @@ struct _net {
     net_client_cb on_connect;
     net_client_cb on_disconnect;
     net_client_cb on_ready;
+    net_action_cb on_game_action;
 };
 
 int net_init(struct _net *net);
