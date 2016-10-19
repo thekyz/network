@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charser="utf-8">
+    <title>Networking</title>
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/black.css" id="theme">i
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>Networking</h1>
+          <h3>It's good for you health</h3>
+          <p>
+            <small>by Alexandre Garcia Mayans</small>
+          </p>
+        </section>
+
+        <section>
+          <h2>Let's see ...</h2>
+          <ul>
+            <li>socket theory</li>
+            <li>socket fun</li>
+            <li>zeromq</li>
+            <li>wireshark</li>
+          </ul>
+        </section>
+
+        <section>
+          <section data-transition="slide" data-background="#b53c9e" data-background-transition="zoom">
+            <h2>Socket theory</h2>
+            <ul>
+              <li>so what's a socket anyway ?</li>
+              <li>the two types of internet sockets</li>
+              <li>a brief note on unix domain sockets</li>
+              <li>nothing on X25 sockets</li>
+              <li>network stuff</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>So what's a socket anyway ?</h2>
+            <ul>
+              <li>an endpoint of a connection across a computer network</li>
+              <li>a way to speak to other programs using standard unix file descriptors</li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li>multiple types of sockets (internet, unix domain, netlink and X25)</li>
+                <li>a socket is a file descriptor in the end</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <h2>the two types of internet sockets</h2>
+            <p class="fragment" data-fragment-index="3">(ok I lied)</p>
+            <ul>
+              <li class="fragment" data-fragment-index="1">stream (SOCK_STREAM)
+                <ul>
+                  <li>connected (TCP)</li>
+                  <li>reliable and ordered but slow</li>
+                </ul>
+              </li>
+              <li class="fragment" data-fragment-index="2">datagram (SOCK_DGRAM)
+                <ul>
+                  <li>connectionless (UDP)</li>
+                  <li>unreliable and unordered but fast</li>
+                </ul>
+              </li>
+              <li class="fragment" data-fragment-index="3">raw (RAW_SOCKET)</li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li>note that raw sockets exist and are very powerfull but we won't speak about it here</li>
+                <li>stream : chat / http</li>
+                <li>dgram : ftp (require ack to resend lost packets) / music or video streaming or multiplayer games (don't care or compensate)</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <h2>a brief note on unix domain sockets</h2>
+            <ul>
+              <li>exist only on local computer
+                <ul>
+                  <li>secure: cannot be accessed remotely</li>
+                  <li>do not require a properly configured network</li>
+                </ul>
+              </li>
+              <li>are ipc secure: file permissions can be configured on the socket</li>
+              <li>support both connected and connectionless modes</li>
+              <li>use the same API as internet sockets</li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li>we will see some examples</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <h2>network stuff</h2>
+            <ul>
+              <li>application layer <span class="fragment">(telnet, ftp, ...)</span></li>
+              <li>host-to-host transport layer <span class="fragment">(TCP, UDP)</span></li>
+              <li>internet layer <span class="fragment">(IP and routing)</span></li>
+              <li>network access layer <span class="fragment">(Ethernet, wi-fi, ...)</span></li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li>data encapsulation example : [Ethernet[IP[UDP[TFTP[DATA]]]]]</li>
+                <li>routing is what a router do, stripping the IP header then consulting the routing table ... blah blah</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              Let's play with netcat!<br />
+              <small>who does NOT like to be confused with nyancat!</small><br />
+              <img data-src="img/tiny_nyan_cat.gif">
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+# server
+nc -l &lt;port&gt;
+
+# client
+nc &lt;host&gt; &lt;port&gt;
+
+# monitoring
+netstat -c -t -a
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>play with netcat client/server and netchat without looking at code</li>
+                <li>use 0_netchat</li>
+              </ul>
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section data-transition="slide" data-background="#b5533c" data-background-transition="zoom">
+            <h2>Socket fun</h2>
+            <p>
+              You've got to know how it hurts.<br />
+              <small>Hugely inspired by <a href="beej.us">beej's guide to networking</a></small>
+            </p>
+            <aside class="notes">
+              <ul>
+                <li>create client.c and server.c to start working on hello-world</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              getaddrinfo()<br />
+              <small>Prepare to launch!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/types.h&gt;
+#include &lt;sys/socket.h&gt;
+#include &lt;netdb.h&gt;
+
+int getaddrinfo(const char *node,     // e.g. IP or DNS resolvable name
+                const char *service,  // e.g. "http" or port number
+                const struct addrinfo *hints,
+                strict addrinfo **res);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>replaces gethostbyname()</li>
+                <li>lot to say but not that complicated to use</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              getaddrinfo()<br />
+              <small>server sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+int status;
+struct addrinfo hints;
+struct addrinfo *servinfo;  // will point to the results
+
+memset(&hints, 0, sizeof hints); // make sure the struct is empty
+hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
+hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+
+if ((status = getaddrinfo(NULL, "3490", &hints, &servinfo)) != 0) {
+    fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+    exit(1);
+}
+// servinfo now points to a linked list of 1 or more struct addrinfos
+// ... do everything until you don't need servinfo anymore ....
+freeaddrinfo(servinfo); // free the linked-list
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>server who wants to listen on it's ip address on port 3490</li>
+                <li>AF_UNSPEC -> don't care about IPv4 or IPv6 (use AF_INET or AF_INET6 to specify)</li>
+                <li>AI_PASSIVE -> address to local host</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              getaddrinfo()<br />
+              <small>client sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+int status;
+struct addrinfo hints;
+struct addrinfo *servinfo;  // will point to the results
+
+memset(&hints, 0, sizeof hints); // make sure the struct is empty
+hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
+hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+
+status = getaddrinfo("www.example.net", "3490", &hints, &servinfo);
+
+// servinfo now points to a linked list of 1 or more struct addrinfos
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>client who wants to connect to the server 'www.example.net' on port 3490</li>
+                <li>demo showip</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              socket()<br />
+              <small>Get the File Descriptor!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/types.h&gt;
+#include &lt;sys/socket.h&gt;
+
+int socket(int domain, int type, int protocol);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>domain is PF_INET or PF_INET6, type is SOCK_STREAM or SOCK_DGRAM and protocol is TCP or UDP (0 for auto or use getprotobyname()))</li>
+                <li>use getaddrinfo and feed into socket</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              socket()<br />
+              <small>sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+int s;
+struct addrinfo hints, *si;
+
+// do the lookup
+memset(&hints, 0, sizeof hints);
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
+getaddrinfo("www.example.com", "http", &hints, &si);
+
+//TODO: error checking
+//TODO: walk the linked list
+s = socket(si->ai_family, si->ai_socktype, si->ai_protocol);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>domain is PF_INET or PF_INET6, type is SOCK_STREAM or SOCK_DGRAM and protocol is TCP or UDP (0 for auto or use getprotobyname()))</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              bind()<br />
+              <small>What port am I on?</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/types.h&gt;
+#include &lt;sys/socket.h&gt;
+
+int bind(int sockfd, struct sockaddr *my_addr, int addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>associate the socket and the port</li>
+                <li>can be used on client side but usually don't care what local port you are using</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              bind()<br />
+              <small>server sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+struct addrinfo hints, *si;
+int sockfd;
+
+memset(&hints, 0, sizeof hints);
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
+getaddrinfo(NULL, "3490", &hints, &si);
+
+// make a socket
+sockfd = socket(si->ai_family, si->ai_socktype, si->ai_protocol);
+
+// bind it to the port we passed in to getaddrinfo()
+bind(sockfd, si->ai_addr, si->ai_addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>watchout ports : below 1024 are RESERVED for su, max is 65535</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              bind()<br />
+              <small>"Address already in use"</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+// lose the pesky "Address already in use" error message
+if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0) {
+    perror("setsockopt");
+    exit(-1);
+}
+
+// on kernels before 3.12.x you also need SO_REUSEPORT
+if (setsockopt(listener, SOL_SOCKET, SO_REUSEPORT, &(int){ 1 }, sizeof(int)) < 0) {
+    perror("setsockopt");
+    exit(-1);
+}
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>&(int){ 1 } is C99 (compound litteral support)</li>
+                <li>!C99: int enable = 1; then &enable</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              connect()<br />
+              <small>Hey, you!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/types.h&gt;
+#include &lt;sys/socket.h&gt;
+
+int connect(int sockfd, struct sockaddr *serv_addr, int addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>client side only</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              connect()<br />
+              <small>client sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+struct addrinfo hints, *si;
+int sockfd;
+
+memset(&hints, 0, sizeof hints);
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+getaddrinfo("www.example.com", "3490", &hints, &si);
+
+// make a socket
+sockfd = socket(si->ai_family, si->ai_socktype, si->ai_protocol);
+
+// connect
+connect(sockfd, si->ai_addr, si->ai_addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>we don't bind because we don't care, but we could</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              listen()<br />
+              <small>Will somebody please call me?</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+int listen(int sockfd, int backlog);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>server side only</li>
+                <li>backlog = number of connections in incoming queue (before they are accepted) 5 or 10 is probably enough</li>
+                <li>sample code after accept()</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              accept()<br />
+              <small>"Thank you for calling port 3490. Please leave a message after the tone."</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/types.h&gt;
+#include &lt;sys/socket.h&gt;
+
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>server side only</li>
+                <li>addr and addrlen are local storage variables that we'll use later on</li>
+                <li>receives a new socket, dedicated to the accepted connection</li>
+                <li>sample code after accept()</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              accept()<br />
+              <small>server sample code</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+struct sockaddr_storage their_addr;
+socklen_t addr_size = sizeof(their_addr);
+struct addrinfo hints, *si;
+int sockfd, new_fd;
+
+memset(&hints, 0, sizeof hints);
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
+getaddrinfo(NULL, "3490", &hints, &si);
+
+sockfd = socket(si->ai_family, si->ai_socktype, si->ai_protocol);
+bind(sockfd, si->ai_addr, si->ai_addrlen);
+listen(sockfd, 10);
+
+accept_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+// ready to send and receive with accept_fd
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>if you only need one connection you can close sockfd</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              send() and recv()<br />
+              <small>Talk to me baby!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/socket.h&gt;
+
+int send(int sockfd, const void *msg, int len, int flags);
+
+int recv(int sockfd, void *buf, int len, int flags);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>used for stream sockets or connected datagram sockets, next functions for unconnected datagram sockets</li>
+                <li>send returns the number of bytes actually sent</li>
+                <li>recv returns the number of bytes received (0 if connection closed)</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              sendto() and recvfrom()<br />
+              <small>Oppa D-GRAM style!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/socket.h&gt;
+
+int sendto(int sockfd, const void *msg, int len, unsigned int flags,
+           const struct sockaddr *to, socklen_t tolen);
+
+int recvfrom(int sockfd, void *buf, int len, unsigned int flags,
+             struct sockaddr *from, int *fromlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>you can connect() to a datagram socket and use recv and send instead</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              close() and shutdown()<br />
+              <small>Get outta my face!</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;unistd.h&gt;
+
+int close(int sockfd);
+
+#include &lt;sys/socket.h&gt;
+
+// how is either:
+// 0 - receives are blocked
+// 1 - sends are blocked
+// 2 - receives and sends are blocked (like close() but without actually "closing" the fd)
+int shutdown(int sockfd, int how);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>you can connect() to a datagram socket and use recv and send instead</li>
+                <li>you still need to close() after shutdowm()</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              getpeername()<br />
+              <small>Who are you?</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;sys/socket.h&gt;
+
+int getpeername(int sockfd, struct sockaddr *addr, int *addrlen);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>gives you information on who is at the other end of a connected socket</li>
+                <li>use inet_ntop() (address), getnameinfo() (name) and getaddrinfo()</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              gethostname()<br />
+              <small>Who am I?</small>
+            </p>
+            <pre><code class="hljs" data-trim data-noescape contenteditable>
+#include &lt;unistd.h&gt;
+
+int gethostname(char *hostname, size_t size);
+            </code></pre>
+            <aside class="notes">
+              <ul>
+                <li>name of current host, nothing more</li>
+              </ul>
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section data-transition="slide" data-background="#3bc553" data-background-transition="zoom">
+            <h2>zeromq</h2>
+            <p>
+              Let's do something nice !
+            </p>
+          </section>
+
+          <section>
+            <h2>some simple patterns</h2>
+            <ul>
+              <li>req/rep and pair</li>
+              <li>pub/sub</li>
+              <li>push/pull</li>
+              <li>router/dealer</li>
+            </ul>
+            <aside class="notes">
+              <ul>
+                <li></li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              req/rep and pair
+            </p>
+            <img data-src="img/req_rep.png">
+            <aside class="notes">
+              <ul>
+                <li>pair is strictly one to one whereas req/rep is one to many or many to one (or one to one)</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              pub/sub 
+            </p>
+            <img data-src="img/pub_sub.png">
+            <aside class="notes">
+              <ul>
+                <li>eg. weather broadcast server</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              push/pull 
+            </p>
+            <img data-src="img/push_pull.png">
+            <aside class="notes">
+              <ul>
+                <li>aka pipeline (you can chain as many as you want, eg. video transcoder)</li>
+              </ul>
+            </aside>
+          </section>
+
+          <section>
+            <p>
+              router/dealer 
+            </p>
+            <img data-src="img/router_dealer.png">
+            <aside class="notes">
+              <ul>
+                <li></li>
+              </ul>
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section data-background-color="#ffffff" data-background-video="https://fat.gfycat.com/CheeryScratchyHadrosaurus.mp4">
+            <h2>Wireshark</h2>
+            <p>
+            </p>
+          </section>
+
+          <section>
+          </section>
+        </section>
+      </div>
+    </div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// More info https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// More info https://github.com/hakimel/reveal.js#dependencies
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+  </body>
+</html>
+
