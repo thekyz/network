@@ -53,7 +53,7 @@
                       <img data-src="img/req_rep.png">
                       <aside class="notes">
                           <ul>
-                              <li>pair is strictly one to one whereas req/rep is one to many or many to one (or one to one)</li>
+                              <li>pair is strictly one to one whereas req/rep is many to many</li>
                           </ul>
                       </aside>
                   </section>
@@ -93,28 +93,63 @@
                           </ul>
                       </aside>
                   </section>
+              </section>
 
+              <section>
                   <section>
-                      <h2>develop a multiplayer game lobby</h2>
+                      <h2>let's develop a multiplayer game lobby</h2>
                       <ul>
-                          <li>server is listening on 4 ports for entering the lobby</li>
-                          <li>clients can connect to any port, they reach the same lobby</li>
-                          <li>once in the lobby clients should receive a list of other connected clients</li>
-                          <li>clients have a ready state that they can trigger</li>
-                          <li>clients can chat in the lobby</li>
-                          <li>once all clients in lobby are ready at the same time, clients join a 'game' chatroom and leave the lobby one</li>
-                          <li>playing clients cannot chat in the lobby</li>
-                          <li>new incoming clients can see the game chatroom but not talk in it</li>
-                          <li>after 1 minute the game room closes and playing clients are returned to the lobby</li>
+                          <li>the broker</li>
+                          <li>the clients</li>
+                          <li>the servers</li>
                       </ul>
-                      <aside class="notes">
-                          <ul>
-                              <li></li>
-                          </ul>
-                      </aside>
                   </section>
 
+                  <section>
+                      <h2>the broker</h2>
+                      <ul>
+                          <li>provides a lobby where clients can connect</li>
+                          <li>maintains a list of servers with their states</li>
+                          <li>should spawn/display new servers when all available servers have at least 2 clients connected</li>
+                          <li>should display max n_clients + 2 empty servers</li>
+                      </ul>
+                  </sectioon>
 
+                  <section>
+                      <h2>the clients</h2>
+                      <ul>
+                          <li>have a nickname</li>
+                          <li>can always be seen in the lobby</li>
+                          <li>can be in one server room (joining one leaves the previous one)</li>
+                          <li>can chat in the lobby or in server rooms (at the same time)</li>
+                          <li>all clients see the lobby chat except ready clients in a 'game' mode server room</li>
+                          <li>can direct-message one another</li>
+                      </ul>
+                  </sectioon>
+
+                  <section>
+                      <h2>the servers</h2>
+                      <ul>
+                          <li>are limited to 4 players max</li>
+                          <li>are either in 'game' mode or in 'chat' mode</li>
+                          <li>
+                              chat mode:
+                              <ul>
+                                  <li>all clients can chat</li>
+                                  <li>clients can change their 'ready' state</li>
+                                  <li>5 seconds after all clients are ready (if at least two clients), switch to game mode</li>
+                              </ul>
+                          </li>
+                          <li>
+                              game mode:
+                              <ul>
+                                  <li>only ready clients can talk, others can read</li>
+                                  <li>clients cannot change their 'ready' state</li>
+                                  <li>1 minute after entering 'game' mode, switch to 'chat' mode</li>
+                              </ul>
+                          </li>
+                      </ul>
+                  </section>
               </section>
           </div>
       </div>
