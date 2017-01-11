@@ -17,17 +17,14 @@ int g_name_len = 0;
 int g_lobby_sub;
 int g_lobby_sink;
 
-static int _send_to_lobby(char *msg, int msg_len)
+static int _whisper(const char *dest, const char *msg)
 {
-    char buffer[BROKER_MAX_MSG_LENGTH];
-    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, BROKER_MSG_FORMAT(g_name, msg));
+    return BROKER_SEND(g_lobby_sink, BROKER_WHISP_FORMAT(g_name, dest, msg));
+}
 
-    /*printf("sending '%s' to lobby\n", buffer);*/
-
-    int bytes = nn_send(g_lobby_sink, buffer, buffer_size + 1, 0);
-    assert(bytes == buffer_size + 1);
-
-    return bytes;
+static int _send_to_lobby(const char *msg)
+{
+    return BROKER_SEND(g_lobby_sink, BROKER_MSG_FORMAT(g_name, msg));
 }
 
 static int _get_user_input(char *buffer, size_t buffer_length)
@@ -49,21 +46,63 @@ static int _get_user_input(char *buffer, size_t buffer_length)
     return 0;
 }
 
+static void _parse_user_input(const char *input_buffer)
+{
+    if (input_buffer[0] == '/') {
+        if (strncmp(input_buffer, "/help", strlen("/help")) == 0) {
+            printf("  /help           Print this help message\n");
+            printf("  /clients        Show the clients currently in this lobby\n");
+            printf("  /msg <u> <m>    Send the message <m> to client <u>\n");
+        } else if (strncmp(input_buffer, "/clients", strlen("/clients")) == 0) {
+        } else if (strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
+            char whisp_buffer[BROKER_MAX_MSG_LENGTH];
+            strcpy(whisp_buffer, input_buffer);
+
+            // discard the command token
+            (void)strtok(whisp_buffer, " ");
+
+            char *user = strtok(NULL, " ");
+            if (user == NULL) {
+                fprintf(stderr, "*** You must provide a client name to send a message to.\n");
+                return;
+            }
+
+            char *msg = strtok(NULL, " ");
+            if (msg == NULL) {
+                fprintf(stderr, "*** You must provide a message to send to '%s'.\n", user);
+                return;
+            }
+
+            _whisper(user, msg);
+        }
+    } else {
+        _send_to_lobby(input_buffer);
+    }
+}
+
 static void _read_from_lobby()
 {
     char *data = NULL;
     int bytes = nn_recv(g_lobby_sub, &data, NN_MSG, 0);
     assert(bytes >= 0);
 
+    /*printf("'%s'\n", data);*/
+
     char *user = strtok(data, BROKER_UNIT_SEPARATOR);
     char *cmd = strtok(NULL, BROKER_UNIT_SEPARATOR);
-    char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
 
-    printf("'%s':'%s':'%s'\n", user, cmd, msg);
+    if (strcmp(cmd, BROKER_MSG) == 0) {
+        char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
 
-    if (strcmp(user, g_name) != 0) {
-        if (strcmp(cmd, BROKER_MSG) == 0) {
-            printf("%s: %s\n", user, msg);
+        if (strcmp(user, g_name) != 0) {
+            printf("<lobby> %s: %s\n", user, msg);
+        }
+    } else if (strcmp(cmd, BROKER_WHISP) == 0) {
+        char *dest = strtok(NULL, BROKER_UNIT_SEPARATOR);
+        char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
+
+        if (strcmp(dest, g_name) == 0) {
+            printf("<whisp> %s: %s\n", user, msg);
         }
     }
 
@@ -97,7 +136,7 @@ static int _poll()
 
         if (nodes[0].revents & POLLIN) {
             if (_get_user_input(input_buffer, sizeof(input_buffer)) == 0) {
-                _send_to_lobby(input_buffer, strlen(input_buffer));
+                _parse_user_input(input_buffer);
             }
         }
 
@@ -129,6 +168,7 @@ int main(int argc, char **argv)
     assert(nn_connect(g_lobby_sink, BROKER_SINK) >= 0);
 
     printf("[C] +++ Connected to broker !\n");
+    printf("Type '/help' for a list of commands.\n");
 
     _poll();
 

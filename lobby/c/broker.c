@@ -14,17 +14,14 @@
 int g_lobby;
 int g_sink;
 
+static int _whisper(const char *from, const char *to, const char *msg)
+{
+    return BROKER_SEND(g_lobby, BROKER_WHISP_FORMAT(from, to, msg));
+}
+
 static int _broadcast(const char *user, const char *msg)
 {
-    char buffer[BROKER_MAX_MSG_LENGTH];
-    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, BROKER_MSG_FORMAT(user, msg));
-
-    int bytes = nn_send(g_lobby, buffer, buffer_size + 1, 0);
-    assert(bytes == buffer_size + 1);
-
-    /*printf("broadcasting '%s' to clients\n", buffer);*/
-
-    return bytes;
+    return BROKER_SEND(g_lobby, BROKER_MSG_FORMAT(user, msg));
 }
 
 static void _cleanup()
@@ -46,15 +43,19 @@ static void _read_from_sink()
     int bytes = nn_recv(g_sink, &data, NN_MSG, 0);
     assert(bytes >= 0);
 
+    /*printf("'%s'\n", data);*/
+
     char *user = strtok(data, BROKER_UNIT_SEPARATOR);
     char *cmd = strtok(NULL, BROKER_UNIT_SEPARATOR);
-    char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
-
-    /*printf("'%s':'%s':'%s'\n", user, cmd, msg);*/
 
     if (strcmp(cmd, BROKER_MSG) == 0) {
+        char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
         printf("[B] %s: '%s'\n", user, msg);
         _broadcast(user, msg);
+    } else if (strcmp(cmd, BROKER_WHISP) == 0) {
+        char *dest = strtok(NULL, BROKER_UNIT_SEPARATOR); 
+        char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR); 
+        _whisper(user, dest, msg);
     }
 
     nn_freemsg(data);
