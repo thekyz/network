@@ -20,7 +20,7 @@ int g_lobby_sink;
 static int _send_to_lobby(char *msg, int msg_len)
 {
     char buffer[BROKER_MAX_MSG_LENGTH];
-    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, "%s%s%s", g_name, BROKER_UNIT_SEPARATOR, msg);
+    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, BROKER_MSG_FORMAT(g_name, msg));
 
     /*printf("sending '%s' to lobby\n", buffer);*/
 
@@ -56,10 +56,15 @@ static void _read_from_lobby()
     assert(bytes >= 0);
 
     char *user = strtok(data, BROKER_UNIT_SEPARATOR);
+    char *cmd = strtok(NULL, BROKER_UNIT_SEPARATOR);
     char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
 
+    printf("'%s':'%s':'%s'\n", user, cmd, msg);
+
     if (strcmp(user, g_name) != 0) {
-        printf("%s: %s\n", user, msg);
+        if (strcmp(cmd, BROKER_MSG) == 0) {
+            printf("%s: %s\n", user, msg);
+        }
     }
 
     nn_freemsg(data);

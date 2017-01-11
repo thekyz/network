@@ -17,12 +17,12 @@ int g_sink;
 static int _broadcast(const char *user, const char *msg)
 {
     char buffer[BROKER_MAX_MSG_LENGTH];
-    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, "%s%s%s", user, BROKER_UNIT_SEPARATOR, msg);
+    int buffer_size = snprintf(buffer, BROKER_MAX_MSG_LENGTH - 1, BROKER_MSG_FORMAT(user, msg));
 
     int bytes = nn_send(g_lobby, buffer, buffer_size + 1, 0);
     assert(bytes == buffer_size + 1);
 
-    /*printf("[B] --> %s\n", msg);*/
+    /*printf("broadcasting '%s' to clients\n", buffer);*/
 
     return bytes;
 }
@@ -47,15 +47,18 @@ static void _read_from_sink()
     assert(bytes >= 0);
 
     char *user = strtok(data, BROKER_UNIT_SEPARATOR);
+    char *cmd = strtok(NULL, BROKER_UNIT_SEPARATOR);
     char *msg = strtok(NULL, BROKER_UNIT_SEPARATOR);
 
-    printf("[B] %s: '%s'\n", user, msg);
+    /*printf("'%s':'%s':'%s'\n", user, cmd, msg);*/
 
-    _broadcast(user, msg);
+    if (strcmp(cmd, BROKER_MSG) == 0) {
+        printf("[B] %s: '%s'\n", user, msg);
+        _broadcast(user, msg);
+    }
 
     nn_freemsg(data);
 }
-
 
 int main(int argc, char **argv)
 {
