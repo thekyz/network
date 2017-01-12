@@ -82,7 +82,12 @@ static int _send_connection_list(const char *user, const char *type)
 
 static void _cleanup()
 {
-    BROKER_SEND(g_lobby, BROKER_SHUTDOWN_FORMAT(BROKER_NAME));
+	// spam the shutdown message a bit ...
+	for (int i = 0; i < 5; i++) {
+	    BROKER_SEND(g_lobby, BROKER_SHUTDOWN_FORMAT(BROKER_NAME));
+	}
+
+	usleep(10000);
 
     nn_shutdown(g_sink, 0);
     nn_shutdown(g_lobby, 0);

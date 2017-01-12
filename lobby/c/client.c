@@ -15,7 +15,14 @@
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
-// client name
+#define err(__m, ...)		fprintf(stderr, "[%c] Error: " __m "\n", g_log_prefix, ##__VA_ARGS__);
+#define log(__m, ...)		printf("[%c] " __m "\n", g_log_prefix, ##__VA_ARGS__);
+
+static char g_log_prefix = '?';
+static bool g_server;
+static char *g_conn_type = NULL;
+
+// connection name
 static char *g_name;
 static int g_name_len = 0;
 
@@ -51,7 +58,7 @@ static int _list_servers()
 
 static int _ping()
 {
-    return BROKER_SEND(g_lobby_sink, BROKER_PING_FORMAT(g_name, BROKER_PING_CLIENT));
+    return BROKER_SEND(g_lobby_sink, BROKER_PING_FORMAT(g_name, g_conn_type));
 }
 
 static ptrdiff_t _strn_trim(char *str, ptrdiff_t max_chars)
@@ -102,17 +109,23 @@ static void _parse_user_input(const char *input_buffer)
 {
     if (input_buffer[0] == '/') {
         if (strncmp(input_buffer, "/help", strlen("/help")) == 0) {
-            printf("  /help           Print this help message\n");
-            printf("  /clients        Show the clients currently in this lobby\n");
-            printf("  /servers        Show the servers availables\n");
-            printf("  /msg <u> <m>    Send the message <m> to client <u>\n");
+            log("  /help           Print this help message");
+            log("  /servers        Show the servers availables");
+			if (!g_server) {
+	            log("  /clients        Show the clients currently in the lobby (and connected server room)");
+	            log("  /msg <u> <m>    Send the message <m> to client <u>");
+			} else {
+	            log("  /clients        Show the clients connected to this server");
+			}
         } else if (strncmp(input_buffer, "/clients", strlen("/clients")) == 0) {
-            _list_clients();
-            g_list_clients = true;
+			if (!g_server) {
+	            _list_clients();
+	            g_list_clients = true;
+			}
         } else if (strncmp(input_buffer, "/servers", strlen("/servers")) == 0) {
             _list_servers();
             g_list_servers = true;
-        } else if (strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
+        } else if (!g_server && strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
             char whisp_buffer[BROKER_MAX_MSG_LENGTH];
             strcpy(whisp_buffer, input_buffer);
 
@@ -121,20 +134,22 @@ static void _parse_user_input(const char *input_buffer)
 
             char *user = strtok(NULL, " ");
             if (user == NULL) {
-                fprintf(stderr, "*** You must provide a client name to send a message to.\n");
+                err("*** You must provide a client name to send a message to.");
                 return;
             }
 
             char *msg = strtok(NULL, " ");
             if (msg == NULL) {
-                fprintf(stderr, "*** You must provide a message to send to '%s'.\n", user);
+                err("*** You must provide a message to send to '%s'.", user);
                 return;
             }
 
             _whisper(user, msg);
         }
     } else {
-        _send_to_lobby(input_buffer);
+		if (!g_server) {
+	        _send_to_lobby(input_buffer);
+		}
     }
 }
 
@@ -142,7 +157,7 @@ static void _print_clients(char *list)
 {
     char *name = strtok(list, BROKER_UNIT_SEPARATOR);
     while (name) {
-        printf("  c: %s\n", name);
+        log("  c: %s", name);
         name = strtok(NULL, BROKER_UNIT_SEPARATOR);
     }
 }
@@ -151,7 +166,7 @@ static void _print_servers(char *list)
 {
     char *name = strtok(list, BROKER_UNIT_SEPARATOR);
     while (name) {
-        printf("  s: %s\n", name);
+        log("  s: %s", name);
         name = strtok(NULL, BROKER_UNIT_SEPARATOR);
     }
 }
@@ -236,7 +251,7 @@ static int _poll()
     bool connected = false;
     for (;;) {
         if (connected && !g_broker_connection) {
-            printf("[C] --- Lost connection to lobby, reconnecting ...\n");
+            log("--- Lost connection to lobby, reconnecting ...");
             _input_disable();
             // disable polling on input
             nodes[0].fd = 0;
@@ -244,9 +259,9 @@ static int _poll()
             nodes[2].fd = 0;
         } else if (!connected && g_broker_connection) {
             static bool print_once = true;
-            printf("[C] +++ Connected to lobby !\n");
+            log("+++ Connected to lobby !");
             if (print_once) {
-                printf("Type '/help' for a list of commands.\n");
+                log("Type '/help' for a list of commands.");
                 print_once = false;
             }
             _input_enable();
@@ -261,7 +276,7 @@ static int _poll()
 
         int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
         if (rc == -1) {
-            fprintf(stderr, "[C] poll() error: %s\n", strerror(errno));
+            err("poll() error: %s", strerror(errno));
 
             return -1;
         } else if (rc == 0) {
@@ -284,7 +299,7 @@ static int _poll()
             uint64_t res;
             int rc = read(nodes[2].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
-                fprintf(stderr, "[C] read() error on timerfd: %s\n", strerror(errno));
+                err("read() error on timerfd: %s", strerror(errno));
             } else {
                 _ping();
             }
@@ -294,15 +309,24 @@ static int _poll()
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "[C] Usage: ./%s <name>\n", argv[0]);
+    if (argc != 3 || (strcmp(argv[1], BROKER_PING_SERVER) != 0 && strcmp(argv[1], BROKER_PING_CLIENT) != 0)) {
+        fprintf(stderr, "Usage: ./%s <%s|%s> <name>\n", argv[0], BROKER_PING_SERVER, BROKER_PING_CLIENT);
         return -1;
     }
 
-    g_name = argv[1];
+    g_name = argv[2];
     g_name_len = strlen(g_name);
+	g_conn_type = argv[1];
 
-    printf("[C] --- Connecting as '%s' ...\n", g_name);
+	if (strcmp(argv[1], BROKER_PING_SERVER) == 0) {
+		g_server = true;
+		g_log_prefix = 'S';
+	} else {
+		g_server = false;
+		g_log_prefix = 'C';
+	}
+
+    log("--- Connecting as %s '%s' ...", g_conn_type, g_name);
 
     g_lobby_sub = nn_socket(AF_SP, NN_SUB);
     assert(g_lobby_sub >= 0);
@@ -312,7 +336,6 @@ int main(int argc, char **argv)
     g_lobby_sink = nn_socket(AF_SP, NN_PUSH);
     assert(g_lobby_sink >= 0);
     assert(nn_connect(g_lobby_sink, BROKER_SINK) >= 0);
-
 
     _poll();
 
