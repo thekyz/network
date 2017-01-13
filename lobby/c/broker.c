@@ -70,7 +70,7 @@ static void _int_handler(int dummy)
     _cleanup();
 }
 
-static void _hearthbeat(const char *conn_type, const char *name)
+static void _hearthbeat(const char *conn_type, const char *name, const char *state)
 {
     list *conn_list = NULL;
     if (strcmp(conn_type, NET_PING_SERVER) == 0) {
@@ -84,12 +84,14 @@ static void _hearthbeat(const char *conn_type, const char *name)
         if (strcmp(conn->name, name) == 0) {
             // found it: keep alive
             conn->alive = 2;
+			sprintf(conn->state, "%s", state);
             return;
         }
     }
 
     conn = (struct connection *)malloc(sizeof(struct connection));
     sprintf(conn->name, "%s", name);
+	sprintf(conn->state, "%s", state);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
 }
@@ -120,7 +122,8 @@ static void _read_from_sink()
 
     if (strcmp(cmd, NET_PING) == 0) {
         char *user_type = NET_NEXT_TOKEN();
-        _hearthbeat(user_type, user);
+		char *state = NET_NEXT_TOKEN();
+        _hearthbeat(user_type, user, state);
     } else if (strcmp(cmd, NET_MSG) == 0) {
         char *msg = NET_NEXT_TOKEN();
         printf("[B] %s: '%s'\n", user, msg);
@@ -211,7 +214,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER);
+                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-");
             }
         }
     }

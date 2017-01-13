@@ -16,6 +16,12 @@
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
+#define _SERVER_MODE_GAME	"game"
+#define _SERVER_MODE_CHAT	"chat"
+
+#define _CLIENT_MODE_IDLE	"idle"
+#define _CLIENT_MODE_READY	"ready"
+
 #define err(__m, ...)		fprintf(stderr, "[%c] Error: " __m "\n", g_log_prefix, ##__VA_ARGS__);
 #define log(__m, ...)		printf("[%c] " __m "\n", g_log_prefix, ##__VA_ARGS__);
 
@@ -23,15 +29,17 @@ static char g_log_prefix = '?';
 static bool g_server;
 static char *g_conn_type = NULL;
 
-// connection name
+// connection info
 static char *g_name;
 static int g_name_len = 0;
+static char g_state[NET_MAX_NAME_LENGTH];
 
 // sockets
 static int g_lobby_sub;
 static int g_lobby_sink;
 
 static bool g_broker_connection = false;
+static bool g_server_connection = false;
 
 // ongoing requests
 static bool g_list_clients = false;
@@ -88,6 +96,7 @@ static void _parse_user_input(const char *input_buffer)
             log("  /help           Print this help message");
             log("  /servers        Show the servers availables");
 			if (!g_server) {
+				log("  /ready		   Toggle ready mode (only in server rooms)")
 	            log("  /clients        Show the clients currently in the lobby (and connected server room)");
 	            log("  /msg <u> <m>    Send the message <m> to client <u>");
 			} else {
@@ -101,27 +110,40 @@ static void _parse_user_input(const char *input_buffer)
         } else if (strncmp(input_buffer, "/servers", strlen("/servers")) == 0) {
             net_list_servers(g_lobby_sink, g_name);
             g_list_servers = true;
-        } else if (!g_server && strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
-            char whisp_buffer[NET_MAX_MSG_LENGTH];
-            strcpy(whisp_buffer, input_buffer);
+        } else if (!g_server) {
+			if (strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
+				char whisp_buffer[NET_MAX_MSG_LENGTH];
+				strcpy(whisp_buffer, input_buffer);
 
-            // discard the command token
-            (void)strtok(whisp_buffer, " ");
+				// discard the command token
+				(void)strtok(whisp_buffer, " ");
 
-            char *user = strtok(NULL, " ");
-            if (user == NULL) {
-                err("*** You must provide a client name to send a message to.");
-                return;
-            }
+				char *user = strtok(NULL, " ");
+				if (user == NULL) {
+					err("*** You must provide a client name to send a message to.");
+					return;
+				}
 
-            char *msg = strtok(NULL, " ");
-            if (msg == NULL) {
-                err("*** You must provide a message to send to '%s'.", user);
-                return;
-            }
+				char *msg = strtok(NULL, " ");
+				if (msg == NULL) {
+					err("*** You must provide a message to send to '%s'.", user);
+					return;
+				}
 
-            net_whisper(g_lobby_sink, g_name, user, msg);
-        }
+				net_whisper(g_lobby_sink, g_name, user, msg);
+	        } else if (strncmp(input_buffer, "/ready", strlen("/ready")) == 0) {
+				if (g_server_connection) {
+					if (strcmp(g_state, _CLIENT_MODE_IDLE) == 0) {
+						sprintf(g_state, "%s", _CLIENT_MODE_READY);
+					} else {
+						sprintf(g_state, "%s", _CLIENT_MODE_IDLE);
+					}
+
+					// notify the broker of our state change
+	                net_ping(g_lobby_sink, g_name, g_conn_type, g_state);
+				}
+			}
+		}
     } else {
 		if (!g_server) {
 	        net_msg(g_lobby_sink, g_name, input_buffer);
@@ -162,11 +184,11 @@ static void _read_from_lobby()
         if (g_list_clients && strcmp(info_type, NET_INFO_CLIENTS) == 0) {
             char *name = NET_NEXT_TOKEN();
 			char *state = NET_NEXT_TOKEN();
-			log("  c: %s", name);
+			log("  c: %s <%s>", name, state);
         } else if (g_list_servers && strcmp(info_type, NET_INFO_SERVERS) == 0) {
             char *name = NET_NEXT_TOKEN();
 			char *state = NET_NEXT_TOKEN();
-			log("  s: %s", name);
+			log("  s: %s <%s>", name, state);
         } else if (strcmp(info_type, NET_INFO_END) == 0) {
 			char *end_type = NET_NEXT_TOKEN();
 			char *state = NET_NEXT_TOKEN();
@@ -268,7 +290,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
-                net_ping(g_lobby_sink, g_name, g_conn_type);
+                net_ping(g_lobby_sink, g_name, g_conn_type, g_state);
             }
         }
     }
@@ -288,9 +310,11 @@ int main(int argc, char **argv)
 	if (strcmp(argv[1], NET_PING_SERVER) == 0) {
 		g_server = true;
 		g_log_prefix = 'S';
+		sprintf(g_state, _SERVER_MODE_CHAT);
 	} else {
 		g_server = false;
 		g_log_prefix = 'C';
+		sprintf(g_state, _CLIENT_MODE_IDLE);
 	}
 
     log("--- Connecting as %s '%s' ...", g_conn_type, g_name);

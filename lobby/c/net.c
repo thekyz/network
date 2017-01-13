@@ -15,7 +15,7 @@
 #define _WHISP_FORMAT(__u, __d, __m)          _FORMAT_ARGS2(__u, NET_WHISP, __d, __m)
 #define _LIST_FORMAT(__u, __t)                _FORMAT_ARGS1(__u, NET_LIST, __t)
 #define _INFO_FORMAT(__u, __t, __n, __s)      _FORMAT_ARGS3(__u, NET_INFO, __t, __n, __s)
-#define _PING_FORMAT(__u, __t)                _FORMAT_ARGS1(__u, NET_PING, __t)
+#define _PING_FORMAT(__u, __t, __s)           _FORMAT_ARGS2(__u, NET_PING, __t, __s)
 #define _SHUTDOWN_FORMAT(__u)                 _FORMAT_ARGS0(__u, NET_SHUTDOWN)
 
 #define _SEND(__s, __f)      ({                                       \
@@ -50,9 +50,9 @@ inline int net_info(int socket, const char *from, const char *conn_type, const c
 	return _SEND(socket, _INFO_FORMAT(from, conn_type, name, state));
 }
 
-inline int net_ping(int socket, const char *from, const char *type)
+inline int net_ping(int socket, const char *from, const char *type, const char *state)
 {
-    return _SEND(socket, _PING_FORMAT(from, type));
+    return _SEND(socket, _PING_FORMAT(from, type, state));
 }
 
 inline int net_shutdown(int socket, const char *from)
