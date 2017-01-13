@@ -33,10 +33,16 @@ static char *g_conn_type = NULL;
 static char *g_name;
 static int g_name_len = 0;
 static char g_state[NET_MAX_NAME_LENGTH];
+static char g_address[NET_MAX_NAME_LENGTH];
 
 // sockets
 static int g_lobby_sub;
 static int g_lobby_sink;
+static int g_server_sub;
+static int g_server_sink;
+
+static char g_broker_lobby_addr[NET_MAX_NAME_LENGTH];
+static char g_broker_sink_addr[NET_MAX_NAME_LENGTH];
 
 static bool g_broker_connection = false;
 static bool g_server_connection = false;
@@ -140,7 +146,7 @@ static void _parse_user_input(const char *input_buffer)
 					}
 
 					// notify the broker of our state change
-	                net_ping(g_lobby_sink, g_name, g_conn_type, g_state);
+	                net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
 				}
 			}
 		}
@@ -290,43 +296,60 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
-                net_ping(g_lobby_sink, g_name, g_conn_type, g_state);
+                net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
             }
         }
     }
 }
 
+static void _usage(const char *app)
+{
+	fprintf(stderr, "Usage:\n");
+	fprintf(stderr, "   %s <%s> <broker_addr> <name> <serv_addr>\n", app, NET_PING_SERVER);
+	fprintf(stderr, "   %s <%s> <broker_addr> <name>\n", app, NET_PING_CLIENT);
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 3 || (strcmp(argv[1], NET_PING_SERVER) != 0 && strcmp(argv[1], NET_PING_CLIENT) != 0)) {
-        fprintf(stderr, "Usage: ./%s <%s|%s> <name>\n", argv[0], NET_PING_SERVER, NET_PING_CLIENT);
+    if (argc < 4 || (strcmp(argv[1], NET_PING_SERVER) != 0 && strcmp(argv[1], NET_PING_CLIENT) != 0)) {
+		_usage(argv[0]);
         return -1;
     }
 
-    g_name = argv[2];
+    g_name = argv[3];
     g_name_len = strlen(g_name);
 	g_conn_type = argv[1];
 
 	if (strcmp(argv[1], NET_PING_SERVER) == 0) {
+		if (argc < 5) {
+			_usage(argv[0]);
+			return -1;
+		}
+
 		g_server = true;
 		g_log_prefix = 'S';
 		sprintf(g_state, _SERVER_MODE_CHAT);
+		sprintf(g_address, "%s", argv[3]);
 	} else {
 		g_server = false;
 		g_log_prefix = 'C';
 		sprintf(g_state, _CLIENT_MODE_IDLE);
+		sprintf(g_address, "");
 	}
 
-    log("--- Connecting as %s '%s' ...", g_conn_type, g_name);
+	sprintf(g_broker_lobby_addr, "tcp://%s:%s", argv[2], BROKER_LOBBY_PORT);
+	sprintf(g_broker_sink_addr, "tcp://%s:%s", argv[2], BROKER_SINK_PORT);
+
+    log("--- Connecting to %s as %s '%s' ...", g_broker_lobby_addr, g_conn_type, g_name);
 
     g_lobby_sub = nn_socket(AF_SP, NN_SUB);
     assert(g_lobby_sub >= 0);
     assert(nn_setsockopt(g_lobby_sub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-    assert(nn_connect(g_lobby_sub, BROKER_LOBBY) >= 0);
+	assert(nn_connect(g_lobby_sub, g_broker_lobby_addr) >= 0);
 
     g_lobby_sink = nn_socket(AF_SP, NN_PUSH);
     assert(g_lobby_sink >= 0);
-    assert(nn_connect(g_lobby_sink, BROKER_SINK) >= 0);
+    assert(nn_connect(g_lobby_sink, g_broker_sink_addr) >= 0);
 
     _poll();
 

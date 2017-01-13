@@ -59,9 +59,6 @@ static void _cleanup()
     nn_shutdown(g_sink, 0);
     nn_shutdown(g_lobby, 0);
 
-    unlink(BROKER_SINK_FILE);
-    unlink(BROKER_LOBBY_FILE);
-
     exit(0);
 }
 
@@ -70,7 +67,7 @@ static void _int_handler(int dummy)
     _cleanup();
 }
 
-static void _hearthbeat(const char *conn_type, const char *name, const char *state)
+static void _hearthbeat(const char *conn_type, const char *name, const char *state, const char *address)
 {
     list *conn_list = NULL;
     if (strcmp(conn_type, NET_PING_SERVER) == 0) {
@@ -82,7 +79,7 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
     struct connection *conn;
     list_foreach(conn_list, conn) {
         if (strcmp(conn->name, name) == 0) {
-            // found it: keep alive
+            // found it: keep alive and update state
             conn->alive = 2;
 			sprintf(conn->state, "%s", state);
             return;
@@ -92,6 +89,7 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
     conn = (struct connection *)malloc(sizeof(struct connection));
     sprintf(conn->name, "%s", name);
 	sprintf(conn->state, "%s", state);
+	sprintf(conn->address, "%s", address);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
 }
@@ -123,7 +121,8 @@ static void _read_from_sink()
     if (strcmp(cmd, NET_PING) == 0) {
         char *user_type = NET_NEXT_TOKEN();
 		char *state = NET_NEXT_TOKEN();
-        _hearthbeat(user_type, user, state);
+		char *address = NET_NEXT_TOKEN();
+        _hearthbeat(user_type, user, state, address);
     } else if (strcmp(cmd, NET_MSG) == 0) {
         char *msg = NET_NEXT_TOKEN();
         printf("[B] %s: '%s'\n", user, msg);
@@ -214,7 +213,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-");
+                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
             }
         }
     }
