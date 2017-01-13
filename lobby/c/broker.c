@@ -12,7 +12,9 @@
 #include <nanomsg/pipeline.h>
 #include <nanomsg/pubsub.h>
 
+#include "net.h"
 #include "broker.h"
+#include "connection.h"
 #include "list.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
@@ -21,70 +23,35 @@ static const int g_max_input_length = 256;      // Max number of chars read from
 static int g_lobby;
 static int g_sink;
 
-struct _connection {
-    list node;
-    char name[BROKER_MAX_NAME_LENGTH];
-    int alive;
-};
-
 static list g_clients;
 static list g_servers;
-
-static int _whisper(const char *from, const char *to, const char *msg)
-{
-    return BROKER_SEND(g_lobby, BROKER_WHISP_FORMAT(from, to, msg));
-}
-
-static int _broadcast(const char *user, const char *msg)
-{
-    return BROKER_SEND(g_lobby, BROKER_MSG_FORMAT(user, msg));
-}
-
-static int _ping()
-{
-    return BROKER_SEND(g_lobby, BROKER_PING_FORMAT(BROKER_PING_BROKER, BROKER_PING_BROKER));
-}
 
 static int _send_connection_list(const char *user, const char *type)
 {
     char *info_type = NULL;
     list *conn_list = NULL;
 
-    if (strcmp(type, BROKER_LIST_CLIENTS) == 0) {
-        info_type = BROKER_INFO_CLIENTS;
+    if (strcmp(type, NET_LIST_CLIENTS) == 0) {
+        info_type = NET_INFO_CLIENTS;
         conn_list = &g_clients;
-    } else if (strcmp(type, BROKER_LIST_SERVERS) == 0) {
-        info_type = BROKER_INFO_SERVERS;
+    } else if (strcmp(type, NET_LIST_SERVERS) == 0) {
+        info_type = NET_INFO_SERVERS;
         conn_list = &g_servers;
     }
 
-    struct _connection *conn;
-    size_t list_msg_size = BROKER_LIST_MAX_SIZE(user, type);
-    char list_msg[list_msg_size];
-    int list_msg_index = 0;
+    struct connection *conn;
     list_foreach(conn_list, conn) {
-        if (list_msg_index + strlen(BROKER_UNIT_SEPARATOR) + strlen(conn->name) + 1 > list_msg_size) {
-            // send what we have and prepare the next message
-            BROKER_SEND(g_lobby, BROKER_INFO_FORMAT(user, info_type, list_msg));
-            list_msg_index = 0;
-            list_msg[0] = '\0';
-        }
-
-        list_msg_index += sprintf(&list_msg[list_msg_index], "%s", conn->name);
-
-        if (conn->node.next != conn_list) {
-            list_msg_index += sprintf(&list_msg[list_msg_index], "%s", BROKER_UNIT_SEPARATOR);
-        }
+		net_info(g_lobby, user, info_type, conn->name, conn->state);
     }
 
-    return BROKER_SEND(g_lobby, BROKER_INFO_FORMAT(user, info_type, list_msg));
+	return net_info(g_lobby, user, NET_INFO_END, info_type, "");
 }
 
 static void _cleanup()
 {
 	// spam the shutdown message a bit ...
 	for (int i = 0; i < 5; i++) {
-	    BROKER_SEND(g_lobby, BROKER_SHUTDOWN_FORMAT(BROKER_NAME));
+	    net_shutdown(g_lobby, BROKER_NAME);
 	}
 
 	usleep(10000);
@@ -106,13 +73,13 @@ static void _int_handler(int dummy)
 static void _hearthbeat(const char *conn_type, const char *name)
 {
     list *conn_list = NULL;
-    if (strcmp(conn_type, BROKER_PING_SERVER) == 0) {
+    if (strcmp(conn_type, NET_PING_SERVER) == 0) {
         conn_list = &g_servers;
-    } else if (strcmp(conn_type, BROKER_PING_CLIENT) == 0) {
+    } else if (strcmp(conn_type, NET_PING_CLIENT) == 0) {
         conn_list = &g_clients;
     }
 
-    struct _connection *conn;
+    struct connection *conn;
     list_foreach(conn_list, conn) {
         if (strcmp(conn->name, name) == 0) {
             // found it: keep alive
@@ -121,7 +88,7 @@ static void _hearthbeat(const char *conn_type, const char *name)
         }
     }
 
-    conn = (struct _connection *)malloc(sizeof(struct _connection));
+    conn = (struct connection *)malloc(sizeof(struct connection));
     sprintf(conn->name, "%s", name);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
@@ -129,7 +96,7 @@ static void _hearthbeat(const char *conn_type, const char *name)
 
 static void _check_connections(list *conn_list)
 {
-    struct _connection *conn;
+    struct connection *conn;
     list_foreach(conn_list, conn) {
         conn->alive--;
 
@@ -148,22 +115,22 @@ static void _read_from_sink()
 
     /*if (strncmp(strstr(data, BROKER_RECORD_SEPARATOR) + strlen(BROKER_RECORD_SEPARATOR), BROKER_PING, 4) != 0) printf("'%s'\n", data);*/
 
-    char *user = BROKER_FIRST_TOKEN(data);
-    char *cmd = BROKER_NEXT_TOKEN();
+    char *user = NET_FIRST_TOKEN(data);
+    char *cmd = NET_NEXT_TOKEN();
 
-    if (strcmp(cmd, BROKER_PING) == 0) {
-        char *user_type = BROKER_NEXT_TOKEN();
+    if (strcmp(cmd, NET_PING) == 0) {
+        char *user_type = NET_NEXT_TOKEN();
         _hearthbeat(user_type, user);
-    } else if (strcmp(cmd, BROKER_MSG) == 0) {
-        char *msg = BROKER_NEXT_TOKEN();
+    } else if (strcmp(cmd, NET_MSG) == 0) {
+        char *msg = NET_NEXT_TOKEN();
         printf("[B] %s: '%s'\n", user, msg);
-        _broadcast(user, msg);
-    } else if (strcmp(cmd, BROKER_WHISP) == 0) {
-        char *dest = BROKER_NEXT_TOKEN();
-        char *msg = BROKER_NEXT_TOKEN();
-        _whisper(user, dest, msg);
-    } else if (strcmp(cmd, BROKER_LIST) == 0) {
-        char *type = BROKER_NEXT_TOKEN();
+        net_msg(g_lobby, user, msg);
+    } else if (strcmp(cmd, NET_WHISP) == 0) {
+        char *dest = NET_NEXT_TOKEN();
+        char *msg = NET_NEXT_TOKEN();
+        net_whisper(g_lobby, user, dest, msg);
+    } else if (strcmp(cmd, NET_LIST) == 0) {
+        char *type = NET_NEXT_TOKEN();
         _send_connection_list(user, type);
     }
 
@@ -244,7 +211,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                _ping();
+                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER);
             }
         }
     }

@@ -11,6 +11,7 @@
 #include <nanomsg/pipeline.h>
 #include <nanomsg/pubsub.h>
 
+#include "net.h"
 #include "broker.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
@@ -35,31 +36,6 @@ static bool g_broker_connection = false;
 // ongoing requests
 static bool g_list_clients = false;
 static bool g_list_servers = false;
-
-static int _whisper(const char *dest, const char *msg)
-{
-    return BROKER_SEND(g_lobby_sink, BROKER_WHISP_FORMAT(g_name, dest, msg));
-}
-
-static int _send_to_lobby(const char *msg)
-{
-    return BROKER_SEND(g_lobby_sink, BROKER_MSG_FORMAT(g_name, msg));
-}
-
-static int _list_clients()
-{
-    return BROKER_SEND(g_lobby_sink, BROKER_LIST_FORMAT(g_name, BROKER_LIST_CLIENTS));
-}
-
-static int _list_servers()
-{
-    return BROKER_SEND(g_lobby_sink, BROKER_LIST_FORMAT(g_name, BROKER_LIST_SERVERS));
-}
-
-static int _ping()
-{
-    return BROKER_SEND(g_lobby_sink, BROKER_PING_FORMAT(g_name, g_conn_type));
-}
 
 static ptrdiff_t _strn_trim(char *str, ptrdiff_t max_chars)
 {
@@ -119,14 +95,14 @@ static void _parse_user_input(const char *input_buffer)
 			}
         } else if (strncmp(input_buffer, "/clients", strlen("/clients")) == 0) {
 			if (!g_server) {
-	            _list_clients();
+	            net_list_clients(g_lobby_sink, g_name);
 	            g_list_clients = true;
 			}
         } else if (strncmp(input_buffer, "/servers", strlen("/servers")) == 0) {
-            _list_servers();
+            net_list_servers(g_lobby_sink, g_name);
             g_list_servers = true;
         } else if (!g_server && strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
-            char whisp_buffer[BROKER_MAX_MSG_LENGTH];
+            char whisp_buffer[NET_MAX_MSG_LENGTH];
             strcpy(whisp_buffer, input_buffer);
 
             // discard the command token
@@ -144,30 +120,12 @@ static void _parse_user_input(const char *input_buffer)
                 return;
             }
 
-            _whisper(user, msg);
+            net_whisper(g_lobby_sink, g_name, user, msg);
         }
     } else {
 		if (!g_server) {
-	        _send_to_lobby(input_buffer);
+	        net_msg(g_lobby_sink, g_name, input_buffer);
 		}
-    }
-}
-
-static void _print_clients(char *list)
-{
-    char *name = strtok(list, BROKER_UNIT_SEPARATOR);
-    while (name) {
-        log("  c: %s", name);
-        name = strtok(NULL, BROKER_UNIT_SEPARATOR);
-    }
-}
-
-static void _print_servers(char *list)
-{
-    char *name = strtok(list, BROKER_UNIT_SEPARATOR);
-    while (name) {
-        log("  s: %s", name);
-        name = strtok(NULL, BROKER_UNIT_SEPARATOR);
     }
 }
 
@@ -181,35 +139,44 @@ static void _read_from_lobby()
 
     /*if (strncmp(strstr(data, BROKER_RECORD_SEPARATOR) + strlen(BROKER_RECORD_SEPARATOR), BROKER_PING, 4) != 0) printf("'%s'\n", data);*/
 
-    char *user = BROKER_FIRST_TOKEN(data);
-    char *cmd = BROKER_NEXT_TOKEN();
+    char *user = NET_FIRST_TOKEN(data);
+    char *cmd = NET_NEXT_TOKEN();
 
-    if (strcmp(cmd, BROKER_PING) == 0) {
+    if (strcmp(cmd, NET_PING) == 0) {
         // ignore
-    } else if (strcmp(cmd, BROKER_MSG) == 0) {
-        char *msg = BROKER_NEXT_TOKEN();
-
-        printf("<lobby> %s: %s\n", user, msg);
-    } else if (strcmp(cmd, BROKER_WHISP) == 0) {
-        char *dest = BROKER_NEXT_TOKEN();
-        char *msg = BROKER_NEXT_TOKEN();
+    } else if (strcmp(cmd, NET_MSG) == 0) {
+		if (!g_server) {
+	        char *msg = NET_NEXT_TOKEN();
+	        printf("<lobby> %s: %s\n", user, msg);
+		}
+    } else if (strcmp(cmd, NET_WHISP) == 0) {
+        char *dest = NET_NEXT_TOKEN();
+        char *msg = NET_NEXT_TOKEN();
 
         if (strcmp(dest, g_name) == 0) {
             printf("<whisp> %s: %s\n", user, msg);
         }
-    } else if (strcmp(cmd, BROKER_INFO) == 0) {
-        char *info_type = BROKER_NEXT_TOKEN();
+    } else if (strcmp(cmd, NET_INFO) == 0) {
+        char *info_type = NET_NEXT_TOKEN();
 
-        if (g_list_clients && strcmp(info_type, BROKER_INFO_CLIENTS) == 0) {
-            char *list = BROKER_NEXT_TOKEN();
-            _print_clients(list);
-            g_list_clients = false;
-        } else if (g_list_servers && strcmp(info_type, BROKER_INFO_SERVERS) == 0) {
-            char *list = BROKER_NEXT_TOKEN();
-            _print_servers(list);
-            g_list_servers = false;
+        if (g_list_clients && strcmp(info_type, NET_INFO_CLIENTS) == 0) {
+            char *name = NET_NEXT_TOKEN();
+			char *state = NET_NEXT_TOKEN();
+			log("  c: %s", name);
+        } else if (g_list_servers && strcmp(info_type, NET_INFO_SERVERS) == 0) {
+            char *name = NET_NEXT_TOKEN();
+			char *state = NET_NEXT_TOKEN();
+			log("  s: %s", name);
+        } else if (strcmp(info_type, NET_INFO_END) == 0) {
+			char *end_type = NET_NEXT_TOKEN();
+			char *state = NET_NEXT_TOKEN();
+			if (strcmp(end_type, NET_INFO_SERVERS) == 0) {
+				g_list_servers = false;
+			} else if (strcmp(end_type, NET_INFO_CLIENTS) == 0) {
+				g_list_clients = false;
+			}
         }
-    } else if (strcmp(cmd, BROKER_SHUTDOWN) == 0) {
+    } else if (strcmp(cmd, NET_SHUTDOWN) == 0) {
         g_broker_connection = false;
     }
 
@@ -301,7 +268,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
-                _ping();
+                net_ping(g_lobby_sink, g_name, g_conn_type);
             }
         }
     }
@@ -309,8 +276,8 @@ static int _poll()
 
 int main(int argc, char **argv)
 {
-    if (argc != 3 || (strcmp(argv[1], BROKER_PING_SERVER) != 0 && strcmp(argv[1], BROKER_PING_CLIENT) != 0)) {
-        fprintf(stderr, "Usage: ./%s <%s|%s> <name>\n", argv[0], BROKER_PING_SERVER, BROKER_PING_CLIENT);
+    if (argc != 3 || (strcmp(argv[1], NET_PING_SERVER) != 0 && strcmp(argv[1], NET_PING_CLIENT) != 0)) {
+        fprintf(stderr, "Usage: ./%s <%s|%s> <name>\n", argv[0], NET_PING_SERVER, NET_PING_CLIENT);
         return -1;
     }
 
@@ -318,7 +285,7 @@ int main(int argc, char **argv)
     g_name_len = strlen(g_name);
 	g_conn_type = argv[1];
 
-	if (strcmp(argv[1], BROKER_PING_SERVER) == 0) {
+	if (strcmp(argv[1], NET_PING_SERVER) == 0) {
 		g_server = true;
 		g_log_prefix = 'S';
 	} else {

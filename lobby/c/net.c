@@ -6,12 +6,17 @@
 
 #include "net.h"
 
-#define _MSG_FORMAT(__u, __m)                 NET_FORMAT_ARGS1(__u, NET_MSG, __m)
-#define _WHISP_FORMAT(__u, __d, __m)          NET_FORMAT_ARGS2(__u, NET_WHISP, __d, __m)
-#define _LIST_FORMAT(__u, __t)                NET_FORMAT_ARGS1(__u, NET_LIST, __t)
-#define _INFO_FORMAT(__u, __t, __i)           NET_FORMAT_ARGS2(__u, NET_INFO, __t, __i)
-#define _PING_FORMAT(__u, __t)                NET_FORMAT_ARGS1(__u, NET_PING, __t)
-#define _SHUTDOWN_FORMAT(__u)                 NET_FORMAT_ARGS0(__u, NET_SHUTDOWN)
+#define _FORMAT_ARGS0(__u, __t)              		"%s%s%s", __u, NET_RECORD_SEPARATOR, __t
+#define _FORMAT_ARGS1(__u, __t, __a1)        		"%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1
+#define _FORMAT_ARGS2(__u, __t, __a1, __a2)  		"%s%s%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1, NET_RECORD_SEPARATOR, __a2
+#define _FORMAT_ARGS3(__u, __t, __a1, __a2, __a3)  	"%s%s%s%s%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1, NET_RECORD_SEPARATOR, __a2, NET_RECORD_SEPARATOR, __a3
+
+#define _MSG_FORMAT(__u, __m)                 _FORMAT_ARGS1(__u, NET_MSG, __m)
+#define _WHISP_FORMAT(__u, __d, __m)          _FORMAT_ARGS2(__u, NET_WHISP, __d, __m)
+#define _LIST_FORMAT(__u, __t)                _FORMAT_ARGS1(__u, NET_LIST, __t)
+#define _INFO_FORMAT(__u, __t, __n, __s)      _FORMAT_ARGS3(__u, NET_INFO, __t, __n, __s)
+#define _PING_FORMAT(__u, __t)                _FORMAT_ARGS1(__u, NET_PING, __t)
+#define _SHUTDOWN_FORMAT(__u)                 _FORMAT_ARGS0(__u, NET_SHUTDOWN)
 
 #define _SEND(__s, __f)      ({                                       \
         char buffer[NET_MAX_MSG_LENGTH];                                 \
@@ -40,9 +45,9 @@ inline int net_list_servers(int socket, const char *from)
     return _SEND(socket, _LIST_FORMAT(from, NET_LIST_SERVERS));
 }
 
-inline int net_info(int socket, const char *from, const char *info_type, const char *info)
+inline int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state)
 {
-	return _SEND(socket, _INFO_FORMAT(from, info_type, info));
+	return _SEND(socket, _INFO_FORMAT(from, conn_type, name, state));
 }
 
 inline int net_ping(int socket, const char *from, const char *type)
