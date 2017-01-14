@@ -16,6 +16,7 @@
 #include "broker.h"
 #include "connection.h"
 #include "list.h"
+#include "system.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
