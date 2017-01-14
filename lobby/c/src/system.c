@@ -24,7 +24,7 @@ int exec_cmd(char *argv[])
     } else if (pid > 0) {
         // parent
         int status;
-        int wait_options;
+        int wait_options = 0;
         pid_t wpid = waitpid(pid, &status, wait_options);
         if (wpid == -1) {
             printf("error: waitpid() (%s)\n", strerror(errno));

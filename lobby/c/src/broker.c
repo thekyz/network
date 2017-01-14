@@ -27,6 +27,8 @@ static int g_sink;
 static list g_clients;
 static list g_servers;
 
+static int g_next_server_id = 0;
+
 static int _send_connection_list(const char *user, const char *type)
 {
     char *info_type = NULL;
@@ -140,6 +142,46 @@ static void _read_from_sink()
     nn_freemsg(data);
 }
 
+static int _spawn_server()
+{
+    int server_id = g_next_server_id++;
+
+    char server_name[NET_MAX_NAME_LENGTH];
+    sprintf(server_name, "%s%03d", "server-", server_id);
+    char server_address[NET_MAX_NAME_LENGTH];
+    sprintf(server_address, "tcp://*:%d", BROKER_BASE_SERVER_PORT + server_id); 
+
+    char *args[] = { "./conn", "server", "127.0.0.1", server_name, server_address, NULL };
+    int rc = exec_cmd(args);
+    if (rc == -1) {
+        fprintf(stderr, "error : Failed to spawn server '%s'!\n", server_name);
+        return -1;
+    }
+
+    return 0;
+}
+
+static void _control()
+{
+    // ping our presence on the lobby
+    net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
+
+    // check if we need to spawn a new server
+    int n_clients = list_count(&g_clients);
+    int n_servers = list_count(&g_servers);
+
+    int n_spawns = n_clients + 2;
+    if (n_spawns > BROKER_MAX_SPAWNED_SERVERS) {
+        n_spawns = BROKER_MAX_SPAWNED_SERVERS;
+    }
+
+    if (n_servers < n_spawns) {
+        for (int i = 0; i < n_spawns - n_servers; i++) {
+            _spawn_server();
+        }
+    }
+}
+
 static int _poll()
 {
     struct pollfd nodes[4];
@@ -214,7 +256,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
+                _control();
             }
         }
     }
