@@ -163,19 +163,20 @@ static int _spawn_server()
 
 static void _control()
 {
-    // ping our presence on the lobby
-    net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
+    _check_connections(&g_servers);
+    _check_connections(&g_clients);
 
     // check if we need to spawn a new server
     int n_clients = list_count(&g_clients);
     int n_servers = list_count(&g_servers);
 
-    int n_spawns = n_clients + 2;
+    int n_spawns = (n_clients / 2) + 1;
     if (n_spawns > BROKER_MAX_SPAWNED_SERVERS) {
         n_spawns = BROKER_MAX_SPAWNED_SERVERS;
     }
 
     if (n_servers < n_spawns) {
+        printf("s:%d / c:%d / sp:%d\n", n_servers, n_clients, n_spawns);
         for (int i = 0; i < n_spawns - n_servers; i++) {
             _spawn_server();
         }
@@ -245,8 +246,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                _check_connections(&g_servers);
-                _check_connections(&g_clients);
+                _control();
             }
         }
 
@@ -256,7 +256,8 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
             } else {
-                _control();
+                // ping our presence on the lobby
+                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
             }
         }
     }

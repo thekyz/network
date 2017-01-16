@@ -23,7 +23,7 @@ static const int g_max_input_length = 256;      // Max number of chars read from
 #define _CLIENT_MODE_READY	"ready"
 
 #define err(__m, ...)		fprintf(stderr, "[%c] Error: " __m "\n", g_log_prefix, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%c] " __m "\n", g_log_prefix, ##__VA_ARGS__);
+#define log(__m, ...)		printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
 
 static char g_log_prefix = '?';
 static bool g_server;
@@ -80,6 +80,7 @@ static int _get_user_input(char *buffer, size_t buffer_length)
         // endline captured, remove it from string
         *endline = '\0';
     } else {
+
         // endline not captured, flush stdin ...
         int c;
         while ((c = getchar()) != '\n' && c != EOF) {}
@@ -101,59 +102,49 @@ static void _parse_user_input(const char *input_buffer)
         if (strncmp(input_buffer, "/help", strlen("/help")) == 0) {
             log("  /help           Print this help message");
             log("  /servers        Show the servers availables");
-			if (!g_server) {
-				log("  /ready		   Toggle ready mode (only in server rooms)")
-	            log("  /clients        Show the clients currently in the lobby (and connected server room)");
-	            log("  /msg <u> <m>    Send the message <m> to client <u>");
-			} else {
-	            log("  /clients        Show the clients connected to this server");
-			}
+            log("  /ready		   Toggle ready mode (only in server rooms)")
+            log("  /clients        Show the clients currently in the lobby (and connected server room)");
+            log("  /msg <u> <m>    Send the message <m> to client <u>");
         } else if (strncmp(input_buffer, "/clients", strlen("/clients")) == 0) {
-			if (!g_server) {
-	            net_list_clients(g_lobby_sink, g_name);
-	            g_list_clients = true;
-			}
+            net_list_clients(g_lobby_sink, g_name);
+            g_list_clients = true;
         } else if (strncmp(input_buffer, "/servers", strlen("/servers")) == 0) {
             net_list_servers(g_lobby_sink, g_name);
             g_list_servers = true;
-        } else if (!g_server) {
-			if (strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
-				char whisp_buffer[NET_MAX_MSG_LENGTH];
-				strcpy(whisp_buffer, input_buffer);
+        } else if (strncmp(input_buffer, "/msg", strlen("/msg")) == 0) {
+            char whisp_buffer[NET_MAX_MSG_LENGTH];
+            strcpy(whisp_buffer, input_buffer);
 
-				// discard the command token
-				(void)strtok(whisp_buffer, " ");
+            // discard the command token
+            (void)strtok(whisp_buffer, " ");
 
-				char *user = strtok(NULL, " ");
-				if (user == NULL) {
-					err("*** You must provide a client name to send a message to.");
-					return;
-				}
+            char *user = strtok(NULL, " ");
+            if (user == NULL) {
+                err("*** You must provide a client name to send a message to.");
+                return;
+            }
 
-				char *msg = strtok(NULL, " ");
-				if (msg == NULL) {
-					err("*** You must provide a message to send to '%s'.", user);
-					return;
-				}
+            char *msg = strtok(NULL, " ");
+            if (msg == NULL) {
+                err("*** You must provide a message to send to '%s'.", user);
+                return;
+            }
 
-				net_whisper(g_lobby_sink, g_name, user, msg);
-	        } else if (strncmp(input_buffer, "/ready", strlen("/ready")) == 0) {
-				if (g_server_connection) {
-					if (strcmp(g_state, _CLIENT_MODE_IDLE) == 0) {
-						sprintf(g_state, "%s", _CLIENT_MODE_READY);
-					} else {
-						sprintf(g_state, "%s", _CLIENT_MODE_IDLE);
-					}
+            net_whisper(g_lobby_sink, g_name, user, msg);
+        } else if (strncmp(input_buffer, "/ready", strlen("/ready")) == 0) {
+            if (g_server_connection) {
+                if (strcmp(g_state, _CLIENT_MODE_IDLE) == 0) {
+                    sprintf(g_state, "%s", _CLIENT_MODE_READY);
+                } else {
+                    sprintf(g_state, "%s", _CLIENT_MODE_IDLE);
+                }
 
-					// notify the broker of our state change
-	                net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
-				}
-			}
-		}
+                // notify the broker of our state change
+                net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
+            }
+        }
     } else {
-		if (!g_server) {
-	        net_msg(g_lobby_sink, g_name, input_buffer);
-		}
+        net_msg(g_lobby_sink, g_name, input_buffer);
     }
 }
 
@@ -255,13 +246,17 @@ static int _poll()
         } else if (!connected && g_broker_connection) {
             static bool print_once = true;
             log("+++ Connected to lobby !");
-            if (print_once) {
-                log("Type '/help' for a list of commands.");
-                print_once = false;
+            if (!g_server) {
+                if (print_once) {
+                    log("Type '/help' for a list of commands.");
+                    print_once = false;
+                }
+
+                _input_enable();
+                // enable polling on input
+                nodes[0].fd = STDIN_FILENO;
             }
-            _input_enable();
-            // enable polling on input
-            nodes[0].fd = STDIN_FILENO;
+
             // enable hearthbeat timer
             nodes[2].fd = tfd;
             assert(timerfd_settime(nodes[2].fd, 0, &ts, NULL) == 0);
@@ -334,7 +329,7 @@ int main(int argc, char **argv)
 		g_server = false;
 		g_log_prefix = 'C';
 		sprintf(g_state, _CLIENT_MODE_IDLE);
-		sprintf(g_address, "");
+		sprintf(g_address, "-");
 	}
 
 	sprintf(g_broker_lobby_addr, "tcp://%s:%s", argv[2], BROKER_LOBBY_PORT);

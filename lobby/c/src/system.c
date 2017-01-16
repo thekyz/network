@@ -21,16 +21,7 @@ int exec_cmd(char *argv[])
         }
 
         // never reached ...
-    } else if (pid > 0) {
-        // parent
-        int status;
-        int wait_options = 0;
-        pid_t wpid = waitpid(pid, &status, wait_options);
-        if (wpid == -1) {
-            printf("error: waitpid() (%s)\n", strerror(errno));
-            return -1;
-        }
-    } else {
+    } else if (pid < 0) {
         fprintf(stderr, "error: child fork failed (%s)\n", strerror(errno));
         return -1;
     }
