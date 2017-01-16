@@ -10,6 +10,7 @@
 
 #define BROKER_HEARTHBEAT_PERIOD                    1
 #define BROKER_KEEP_ALIVE_PERIOD                    5
+#define BROKER_SERVER_SHUTDOWN_CHECK_PERIOD         (BROKER_KEEP_ALIVE_PERIOD * 6)
 
 #define BROKER_NAME                                 "broker"
 

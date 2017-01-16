@@ -6,6 +6,7 @@
 #include <sys/timerfd.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #include <nanomsg/nn.h>
 #include <nanomsg/pipeline.h>
@@ -13,6 +14,7 @@
 
 #include "net.h"
 #include "broker.h"
+#include "list.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
@@ -50,6 +52,11 @@ static bool g_server_connection = false;
 // ongoing requests
 static bool g_list_clients = false;
 static bool g_list_servers = false;
+
+// server stuff
+static list g_connected_clients;
+static bool g_shutdown_validate = false;
+static unsigned int g_shutdown_check = 0;
 
 static ptrdiff_t _strn_trim(char *str, ptrdiff_t max_chars)
 {
@@ -148,6 +155,29 @@ static void _parse_user_input(const char *input_buffer)
     }
 }
 
+static void _cleanup()
+{
+	// spam the shutdown message a bit ...
+	for (int i = 0; i < 5; i++) {
+        net_shutdown(g_lobby_sink, g_name);
+	}
+
+	usleep(10000);
+
+    nn_shutdown(g_lobby_sub, 0);
+    nn_shutdown(g_lobby_sink, 0);
+
+    if (g_server_connection || g_server) {
+        nn_shutdown(g_server_sub, 0);
+        nn_shutdown(g_server_sink, 0);
+    } 
+
+    log("--- Shutting down ...");
+
+    exit(0);
+}
+
+
 static void _read_from_lobby()
 {
     char *data = NULL;
@@ -199,7 +229,13 @@ static void _read_from_lobby()
         if (strcmp(user, BROKER_NAME) == 0) {
             g_broker_connection = false;
         } else if (g_server && strcmp(user, NET_SHUTDOWN_SERVERS) == 0) {
-            // TODO flag for shutdown if empty for more than 30 seconds, shutdown on second message
+            if (g_shutdown_validate) {
+                _cleanup();
+            } else if (g_shutdown_check > BROKER_SERVER_SHUTDOWN_CHECK_PERIOD) {
+                g_shutdown_validate = true;
+            } else {
+                g_shutdown_validate = false;
+            }
         }
     }
 
@@ -212,6 +248,19 @@ static void _input_enable()
 
 static void _input_disable()
 {
+}
+
+static void _control()
+{
+    net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
+
+    if (g_server) {
+       if (list_count(&g_connected_clients) == 0) {
+           g_shutdown_check += BROKER_KEEP_ALIVE_PERIOD;
+       } else {
+           g_shutdown_check = 0;
+       }
+    }
 }
 
 static int _poll()
@@ -295,7 +344,7 @@ static int _poll()
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
-                net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
+                _control();
             }
         }
     }
@@ -329,6 +378,8 @@ int main(int argc, char **argv)
 		g_log_prefix = 'S';
 		sprintf(g_state, _SERVER_MODE_CHAT);
 		sprintf(g_address, "%s", argv[3]);
+
+        list_init(&g_connected_clients);
 	} else {
 		g_server = false;
 		g_log_prefix = 'C';

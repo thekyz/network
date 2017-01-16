@@ -95,6 +95,7 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
 	sprintf(conn->address, "%s", address);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
+    printf("[B] ==> '%s' connected\n", conn->name);
 }
 
 static void _check_connections(list *conn_list)
@@ -104,6 +105,7 @@ static void _check_connections(list *conn_list)
         conn->alive--;
 
         if (conn->alive == 0) {
+            printf("[B] --- '%s' disconnected\n", conn->name);
             list_delete(&conn->node);
             free(conn);
         }
@@ -161,11 +163,8 @@ static int _spawn_server()
     return 0;
 }
 
-static void _control()
+static void _server_control()
 {
-    _check_connections(&g_servers);
-    _check_connections(&g_clients);
-
     // check if we need to spawn a new server
     int n_clients = list_count(&g_clients);
     int n_servers = list_count(&g_servers);
@@ -182,10 +181,18 @@ static void _control()
         }
     }
 
-    if (n_spawns > n_servers) {
+    if (n_servers > n_spawns) {
         // make a shutdown request (servers empty for more than 30 seconds will shutdown on second request)
         net_shutdown(g_lobby, NET_SHUTDOWN_SERVERS);
     }
+}
+
+static void _control()
+{
+    _check_connections(&g_servers);
+    _check_connections(&g_clients);
+
+    _server_control();
 }
 
 static int _poll()
@@ -230,7 +237,7 @@ static int _poll()
         int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
 
         if (rc == -1) {
-            fprintf(stderr, "[C] poll() error: %s\n", strerror(errno));
+            fprintf(stderr, "[B] poll() error: %s\n", strerror(errno));
             return -1;
         } else if (rc == 0) {
             // timeout
