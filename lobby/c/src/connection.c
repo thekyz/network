@@ -177,7 +177,6 @@ static void _cleanup()
     exit(0);
 }
 
-
 static void _read_from_lobby()
 {
     char *data = NULL;
@@ -242,14 +241,6 @@ static void _read_from_lobby()
     nn_freemsg(data);
 }
 
-static void _input_enable()
-{
-}
-
-static void _input_disable()
-{
-}
-
 static void _control()
 {
     net_ping(g_lobby_sink, g_name, g_conn_type, g_state, g_address);
@@ -291,7 +282,7 @@ static int _poll()
     for (;;) {
         if (connected && !g_broker_connection) {
             log("--- Lost connection to lobby, reconnecting ...");
-            _input_disable();
+
             // disable polling on input
             nodes[0].fd = 0;
             // disable hearthbeat timer
@@ -305,7 +296,6 @@ static int _poll()
                     print_once = false;
                 }
 
-                _input_enable();
                 // enable polling on input
                 nodes[0].fd = STDIN_FILENO;
             }
