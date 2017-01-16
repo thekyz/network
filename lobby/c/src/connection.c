@@ -13,6 +13,7 @@
 #include <nanomsg/pubsub.h>
 
 #include "net.h"
+#include "log.h"
 #include "broker.h"
 #include "list.h"
 
@@ -24,10 +25,6 @@ static const int g_max_input_length = 256;      // Max number of chars read from
 #define _CLIENT_MODE_IDLE	"idle"
 #define _CLIENT_MODE_READY	"ready"
 
-#define err(__m, ...)		fprintf(stderr, "[%c] Error: " __m "\n", g_log_prefix, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
-
-static char g_log_prefix = '?';
 static bool g_server;
 static char *g_conn_type = NULL;
 
@@ -365,14 +362,12 @@ int main(int argc, char **argv)
 		}
 
 		g_server = true;
-		g_log_prefix = 'S';
 		sprintf(g_state, _SERVER_MODE_CHAT);
 		sprintf(g_address, "%s", argv[3]);
 
         list_init(&g_connected_clients);
 	} else {
 		g_server = false;
-		g_log_prefix = 'C';
 		sprintf(g_state, _CLIENT_MODE_IDLE);
 		sprintf(g_address, "-");
 	}

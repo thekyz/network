@@ -13,12 +13,14 @@
 #include <nanomsg/pubsub.h>
 
 #include "net.h"
+#include "log.h"
 #include "broker.h"
 #include "connection.h"
 #include "list.h"
 #include "system.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
+static const char g_name[] = BROKER_NAME;
 
 // sockets
 static int g_lobby;
@@ -95,7 +97,7 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
 	sprintf(conn->address, "%s", address);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
-    printf("[B] ==> '%s' connected\n", conn->name);
+    log("==> '%s' connected", conn->name);
 }
 
 static void _check_connections(list *conn_list)
@@ -105,7 +107,7 @@ static void _check_connections(list *conn_list)
         conn->alive--;
 
         if (conn->alive == 0) {
-            printf("[B] --- '%s' disconnected\n", conn->name);
+            log("--- '%s' disconnected", conn->name);
             list_delete(&conn->node);
             free(conn);
         }
@@ -130,7 +132,7 @@ static void _read_from_sink()
         _hearthbeat(user_type, user, state, address);
     } else if (strcmp(cmd, NET_MSG) == 0) {
         char *msg = NET_NEXT_TOKEN();
-        printf("[B] %s: '%s'\n", user, msg);
+        log("%s: '%s'", user, msg);
         net_msg(g_lobby, user, msg);
     } else if (strcmp(cmd, NET_WHISP) == 0) {
         char *dest = NET_NEXT_TOKEN();
@@ -156,7 +158,7 @@ static int _spawn_server()
     char *args[] = { "./conn", "server", "127.0.0.1", server_name, server_address, NULL };
     int rc = exec_cmd(args);
     if (rc == -1) {
-        fprintf(stderr, "error : Failed to spawn server '%s'!\n", server_name);
+        err("Failed to spawn server '%s'", server_name);
         return -1;
     }
 
@@ -237,7 +239,7 @@ static int _poll()
         int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
 
         if (rc == -1) {
-            fprintf(stderr, "[B] poll() error: %s\n", strerror(errno));
+            err("poll(): %s", strerror(errno));
             return -1;
         } else if (rc == 0) {
             // timeout
@@ -256,7 +258,7 @@ static int _poll()
             uint64_t res;
             int rc = read(nodes[2].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
-                fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
+                err("read() error on timerfd: %s", strerror(errno));
             } else {
                 _control();
             }
@@ -266,7 +268,7 @@ static int _poll()
             uint64_t res;
             int rc = read(nodes[3].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
-                fprintf(stderr, "[B] read() error on timerfd: %s\n", strerror(errno));
+                err("read() error on timerfd: %s", strerror(errno));
             } else {
                 // ping our presence on the lobby
                 net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
@@ -290,7 +292,7 @@ int main(int argc, char **argv)
     assert(g_sink >= 0);
     assert(nn_bind(g_sink, BROKER_SINK) >= 0);
 
-    printf("[B] +++ Broker started (lobby: %s / sink: %s)\n" , BROKER_LOBBY, BROKER_SINK);
+    log("+++ Started (lobby: %s / sink: %s)" , BROKER_LOBBY, BROKER_SINK);
 
     _poll();
     _cleanup();
