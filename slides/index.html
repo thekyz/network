@@ -99,6 +99,7 @@
                   <section>
                       <h2>let's develop a multiplayer game lobby</h2>
                       <ul>
+                          <li>prerequesites</li>
                           <li>the broker</li>
                           <li>the clients</li>
                           <li>the servers</li>
@@ -106,12 +107,22 @@
                   </section>
 
                   <section>
+                      <h2>prerequesites</h2>
+                      <ul>
+                          <li>a poll/select loop (with timer and stdin/console support)</li>
+                          <li>a basic input parser</li>
+                          <li>a basic command/line args parser</li>
+                          <li>a list library</li>
+                          <li>a fork/exec library</li>
+                      </ul>
+                  </sectioon>
+
+                  <section>
                       <h2>the broker</h2>
                       <ul>
                           <li>provides a lobby where clients can connect</li>
                           <li>maintains a list of servers with their states</li>
-                          <li>should spawn/display new servers when all available servers have at least 2 clients connected</li>
-                          <li>should display max n_clients + 2 empty servers</li>
+                          <li>should maintain ((clients / 2) + 1) servers (shutdown unused ones if too much)</li>
                       </ul>
                   </sectioon>
 
@@ -121,7 +132,8 @@
                           <li>have a nickname</li>
                           <li>can always be seen in the lobby</li>
                           <li>can be in one server room (joining one leaves the previous one)</li>
-                          <li>can chat in the lobby or in server rooms (at the same time)</li>
+                          <li>can chat in the lobby</li>
+                          <li>can chat in server room (at the same time as lobby)</li>
                           <li>all clients see the lobby chat except ready clients in a 'game' mode server room</li>
                           <li>can direct-message one another</li>
                       </ul>
