@@ -9,6 +9,7 @@
 #define NET_FIRST_TOKEN(__s)                    strtok(__s, NET_RECORD_SEPARATOR)
 
 #define NET_SHUTDOWN                            "shutdown"
+#define NET_SHUTDOWN_SERVERS                    "servers"
 
 #define NET_MSG                                 "msg"
 

@@ -176,10 +176,15 @@ static void _control()
     }
 
     if (n_servers < n_spawns) {
-        printf("s:%d / c:%d / sp:%d\n", n_servers, n_clients, n_spawns);
+        // spawn more
         for (int i = 0; i < n_spawns - n_servers; i++) {
             _spawn_server();
         }
+    }
+
+    if (n_spawns > n_servers) {
+        // make a shutdown request (servers empty for more than 30 seconds will shutdown on second request)
+        net_shutdown(g_lobby, NET_SHUTDOWN_SERVERS);
     }
 }
 

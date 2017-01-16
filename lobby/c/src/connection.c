@@ -196,7 +196,11 @@ static void _read_from_lobby()
 			}
         }
     } else if (strcmp(cmd, NET_SHUTDOWN) == 0) {
-        g_broker_connection = false;
+        if (strcmp(user, BROKER_NAME) == 0) {
+            g_broker_connection = false;
+        } else if (g_server && strcmp(user, NET_SHUTDOWN_SERVERS) == 0) {
+            // TODO flag for shutdown if empty for more than 30 seconds, shutdown on second message
+        }
     }
 
     nn_freemsg(data);
