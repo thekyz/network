@@ -8,7 +8,7 @@ struct connection {
     char name[NET_MAX_NAME_LENGTH];
     int alive;
 	char state[NET_MAX_NAME_LENGTH];
-	char address[NET_MAX_NAME_LENGTH];
-    int id;
+	char id[NET_MAX_NAME_LENGTH];
+    char connections[NET_MAX_NAME_LENGTH];
 };
 

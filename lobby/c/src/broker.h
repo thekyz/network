@@ -1,7 +1,9 @@
 #pragma once
 
-#define BROKER_BASE_SERVER_PORT                     7000
+#define BROKER_BASE_SERVER_SINK_PORT                61000
+#define BROKER_BASE_SERVER_PUB_PORT                 62000
 #define BROKER_MAX_SPAWNED_SERVERS                  16
+#define BROKER_MAX_SERVER_CLIENTS                   4
 
 #define BROKER_LOBBY_PORT							"6990"
 #define BROKER_LOBBY                                "tcp://*:" BROKER_LOBBY_PORT

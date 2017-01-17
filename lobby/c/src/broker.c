@@ -46,10 +46,10 @@ static int _send_connection_list(const char *user, const char *type)
 
     struct connection *conn;
     list_foreach(conn_list, conn) {
-		net_info(g_lobby, user, info_type, conn->name, conn->state);
+		net_info(g_lobby, user, info_type, conn->name, conn->state, conn->connections);
     }
 
-	return net_info(g_lobby, user, NET_INFO_END, info_type, "");
+	return net_info(g_lobby, user, NET_INFO_END, info_type, "-", "-");
 }
 
 static void _cleanup()
@@ -72,7 +72,7 @@ static void _int_handler(int dummy)
     _cleanup();
 }
 
-static void _hearthbeat(const char *conn_type, const char *name, const char *state, const char *address)
+static void _hearthbeat(const char *conn_type, const char *name, const char *state, const char *id, const char *connections)
 {
     list *conn_list = NULL;
     if (strcmp(conn_type, NET_PING_SERVER) == 0) {
@@ -87,6 +87,7 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
             // found it: keep alive and update state
             conn->alive = 2;
 			sprintf(conn->state, "%s", state);
+			sprintf(conn->connections, "%s", connections);
             return;
         }
     }
@@ -94,7 +95,8 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
     conn = (struct connection *)malloc(sizeof(struct connection));
     sprintf(conn->name, "%s", name);
 	sprintf(conn->state, "%s", state);
-	sprintf(conn->address, "%s", address);
+	sprintf(conn->id, "%s", id);
+    sprintf(conn->connections, "%s", connections);
     conn->alive = 2;
     list_add_tail(conn_list, &conn->node);
     log("==> '%s' connected", conn->name);
@@ -128,8 +130,9 @@ static void _read_from_sink()
     if (strcmp(cmd, NET_PING) == 0) {
         char *user_type = NET_NEXT_TOKEN();
 		char *state = NET_NEXT_TOKEN();
-		char *address = NET_NEXT_TOKEN();
-        _hearthbeat(user_type, user, state, address);
+		char *id = NET_NEXT_TOKEN();
+        char *connections = NET_NEXT_TOKEN();
+        _hearthbeat(user_type, user, state, id, connections);
     } else if (strcmp(cmd, NET_MSG) == 0) {
         char *msg = NET_NEXT_TOKEN();
         log("%s: '%s'", user, msg);
@@ -152,10 +155,10 @@ static int _spawn_server()
 
     char server_name[NET_MAX_NAME_LENGTH];
     sprintf(server_name, "%s%03d", "server-", server_id);
-    char server_address[NET_MAX_NAME_LENGTH];
-    sprintf(server_address, "tcp://*:%d", BROKER_BASE_SERVER_PORT + server_id); 
+    char server_id_str[NET_MAX_NAME_LENGTH];
+    sprintf(server_id_str, "%d", server_id); 
 
-    char *args[] = { "./conn", "server", "127.0.0.1", server_name, server_address, NULL };
+    char *args[] = { "./conn", "server", "127.0.0.1", server_name, server_id_str, NULL };
     int rc = exec_cmd(args);
     if (rc == -1) {
         err("Failed to spawn server '%s'", server_name);
@@ -271,7 +274,7 @@ static int _poll()
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
                 // ping our presence on the lobby
-                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-");
+                net_ping(g_lobby, BROKER_NAME, NET_PING_BROKER, "-", "-", "-");
             }
         }
     }

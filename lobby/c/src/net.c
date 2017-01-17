@@ -6,10 +6,13 @@
 
 #include "net.h"
 
-#define _FORMAT_ARGS0(__u, __t)              		"%s%s%s", __u, NET_RECORD_SEPARATOR, __t
-#define _FORMAT_ARGS1(__u, __t, __a1)        		"%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1
-#define _FORMAT_ARGS2(__u, __t, __a1, __a2)  		"%s%s%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1, NET_RECORD_SEPARATOR, __a2
-#define _FORMAT_ARGS3(__u, __t, __a1, __a2, __a3)  	"%s%s%s%s%s%s%s%s%s", __u, NET_RECORD_SEPARATOR, __t, NET_RECORD_SEPARATOR, __a1, NET_RECORD_SEPARATOR, __a2, NET_RECORD_SEPARATOR, __a3
+#define NRS                                             NET_RECORD_SEPARATOR
+
+#define _FORMAT_ARGS0(__u, __t)              		    "%s%s%s", __u, NRS,  __t
+#define _FORMAT_ARGS1(__u, __t, __a1)        		    "%s%s%s%s%s", __u, NRS, __t, NRS, __a1
+#define _FORMAT_ARGS2(__u, __t, __a1, __a2)  		    "%s%s%s%s%s%s%s", __u, NRS, __t, NRS, __a1, NRS, __a2
+#define _FORMAT_ARGS3(__u, __t, __a1, __a2, __a3)  	    "%s%s%s%s%s%s%s%s%s", __u, NRS, __t, NRS, __a1, NRS, __a2, NRS, __a3
+#define _FORMAT_ARGS4(__u, __t, __a1, __a2, __a3, __a4) "%s%s%s%s%s%s%s%s%s%s%s", __u, NRS, __t, NRS, __a1, NRS, __a2, NRS, __a3, NRS, __a4
 
 #define _SEND(__s, __f)      ({                                       \
         char buffer[NET_MAX_MSG_LENGTH];                                 \
@@ -38,14 +41,14 @@ inline int net_list_servers(int socket, const char *from)
     return _SEND(socket, _FORMAT_ARGS1(from, NET_LIST, NET_LIST_SERVERS));
 }
 
-inline int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state)
+inline int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections)
 {
-	return _SEND(socket, _FORMAT_ARGS3(from, NET_INFO, conn_type, name, state));
+	return _SEND(socket, _FORMAT_ARGS4(from, NET_INFO, conn_type, name, state, connections));
 }
 
-inline int net_ping(int socket, const char *from, const char *type, const char *state, const char *address)
+inline int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
 {
-    return _SEND(socket, _FORMAT_ARGS3(from, NET_PING, type, state, address));
+    return _SEND(socket, _FORMAT_ARGS4(from, NET_PING, type, state, id, connections));
 }
 
 inline int net_shutdown(int socket, const char *from)

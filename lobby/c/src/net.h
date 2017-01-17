@@ -33,7 +33,7 @@ int net_whisper(int socket, const char *from, const char *to, const char *msg);
 int net_msg(int socket, const char *from, const char *msg);
 int net_list_clients(int socket, const char *from);
 int net_list_servers(int socket, const char *from);
-int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state);
-int net_ping(int socket, const char *from, const char *type, const char *state, const char *address);
+int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections);
+int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections);
 int net_shutdown(int socket, const char *from);
 
