@@ -19,6 +19,8 @@
 #define NET_LIST_CLIENTS                        "clients"
 #define NET_LIST_SERVERS                        "servers"
 
+#define NET_CONNECT                             "connect"
+
 #define NET_INFO                                "info"
 #define NET_INFO_CLIENTS                        "clients"
 #define NET_INFO_SERVERS                        "servers"
@@ -33,6 +35,7 @@ int net_whisper(int socket, const char *from, const char *to, const char *msg);
 int net_msg(int socket, const char *from, const char *msg);
 int net_list_clients(int socket, const char *from);
 int net_list_servers(int socket, const char *from);
+int net_connect(int socket, const char *from, const char *to);
 int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections);
 int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections);
 int net_shutdown(int socket, const char *from);

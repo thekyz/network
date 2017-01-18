@@ -116,13 +116,24 @@ static void _check_connections(list *conn_list)
     }
 }
 
+static void _connect_client_to_server(const char *client, const char *server)
+{
+    struct connection *conn;
+    list_foreach(&g_servers, conn) {
+        if (strncmp(conn->name, server, strlen(conn->name)) == 0 && conn->alive > 0) {
+            // server looks alive
+            net_ping(g_lobby, server, NET_PING_SERVER, conn->state, conn->id, "-");
+        }
+    }
+}
+
 static void _read_from_sink()
 {
     char *data = NULL;
     int bytes = nn_recv(g_sink, &data, NN_MSG, 0);
     assert(bytes >= 0);
 
-    /*if (strncmp(strstr(data, BROKER_RECORD_SEPARATOR) + strlen(BROKER_RECORD_SEPARATOR), BROKER_PING, 4) != 0) printf("'%s'\n", data);*/
+    /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);*/
 
     char *user = NET_FIRST_TOKEN(data);
     char *cmd = NET_NEXT_TOKEN();
@@ -133,6 +144,9 @@ static void _read_from_sink()
 		char *id = NET_NEXT_TOKEN();
         char *connections = NET_NEXT_TOKEN();
         _hearthbeat(user_type, user, state, id, connections);
+    } else if (strcmp(cmd, NET_CONNECT) == 0) {
+        char *server = NET_NEXT_TOKEN();
+        _connect_client_to_server(user, server);
     } else if (strcmp(cmd, NET_MSG) == 0) {
         char *msg = NET_NEXT_TOKEN();
         log("%s: '%s'", user, msg);

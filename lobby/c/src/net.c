@@ -46,6 +46,11 @@ inline int net_info(int socket, const char *from, const char *conn_type, const c
 	return _SEND(socket, _FORMAT_ARGS4(from, NET_INFO, conn_type, name, state, connections));
 }
 
+inline int net_connect(int socket, const char *from, const char *to)
+{
+    return _SEND(socket, _FORMAT_ARGS1(from, NET_CONNECT, to));
+}
+
 inline int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
 {
     return _SEND(socket, _FORMAT_ARGS4(from, NET_PING, type, state, id, connections));

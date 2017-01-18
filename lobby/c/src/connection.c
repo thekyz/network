@@ -16,6 +16,7 @@
 #include "log.h"
 #include "broker.h"
 #include "list.h"
+#include "connection.h"
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
@@ -35,16 +36,18 @@ static char g_state[NET_MAX_NAME_LENGTH];
 static char g_id[NET_MAX_NAME_LENGTH];
 
 // sockets
-static int g_lobby_sub;
-static int g_lobby_sink;
-static int g_server_pub;
-static int g_server_sink;
+static int g_lobby_pubsub = 0;
+static int g_lobby_sink = 0;
+static int g_server_pubsub = 0;
+static int g_server_sink = 0;
 
 static char g_broker_lobby_addr[NET_MAX_NAME_LENGTH];
 static char g_broker_sink_addr[NET_MAX_NAME_LENGTH];
 
 static bool g_broker_connection = false;
+static char g_server_monitor[NET_MAX_NAME_LENGTH] = "";
 static bool g_server_connection = false;
+static bool g_server_poll = false;
 
 // ongoing requests
 static bool g_list_clients = false;
@@ -55,19 +58,22 @@ static list g_connected_clients;
 static bool g_shutdown_validate = false;
 static unsigned int g_shutdown_check = 0;
 static char g_server_sink_port[NET_MAX_NAME_LENGTH];
-static char g_server_pub_port[NET_MAX_NAME_LENGTH];
+static char g_server_pubsub_port[NET_MAX_NAME_LENGTH];
 static char g_server_sink_addr[NET_MAX_NAME_LENGTH];
-static char g_server_pub_addr[NET_MAX_NAME_LENGTH];
+static char g_server_pubsub_addr[NET_MAX_NAME_LENGTH];
 
 static void _ping()
 {
     char connections[NET_MAX_NAME_LENGTH] = "lobby";
     if (g_server) {
         sprintf(connections, "%d", list_count(&g_connected_clients));
+
+        net_ping(g_server_pubsub, g_name, g_conn_type, g_state, g_id, connections);
     } else {
         if (g_server_connection) {
-            // TODO print actual server name
-            sprintf(connections, "server");
+            snprintf(connections, NET_MAX_NAME_LENGTH, "%s", g_server_monitor);
+        
+            net_ping(g_server_sink, g_name, g_conn_type, g_state, g_id, connections);
         }
     }
 
@@ -128,6 +134,7 @@ static void _parse_user_input(const char *input_buffer)
             log("  /help           Print this help message");
             log("  /servers        Show the servers availables");
             log("  /join <s>       Join server <s>");
+            log("  /leave          Leave the current server <s>");
             log("  /s <m>          Send the message <m> in the server chatroom");
             log("  /ready		   Toggle ready mode (only in server rooms)")
             log("  /clients        Show the clients currently in the lobby (and connected server room)");
@@ -138,27 +145,47 @@ static void _parse_user_input(const char *input_buffer)
         } else if (_str_match(input_buffer, "/servers")) {
             net_list_servers(g_lobby_sink, g_name);
             g_list_servers = true;
-        } else if (_str_match(input_buffer, "/join")) {
-            // TODO actually join server
-        } else if (_str_match(input_buffer, "/s")) {
+        } else if (_str_match(input_buffer, "/leave")) {
             if (g_server_connection) {
-                char whisp_buffer[NET_MAX_MSG_LENGTH];
-                strcpy(whisp_buffer, input_buffer);
+                g_server_poll = false;
+                g_server_connection = false;
+                sprintf(g_server_monitor, "");
+            } else {
+                err("not connected to a server");
+            }
+        } else if (_str_match(input_buffer, "/join")) {
+            if (g_server_connection == false && strlen(g_server_monitor) == 0) {
+                char frame_buffer[NET_MAX_MSG_LENGTH];
+                snprintf(frame_buffer, NET_MAX_MSG_LENGTH, "%s", input_buffer);
 
                 // discard the command token
-                (void)strtok(whisp_buffer, " ");
+                (void)strtok(frame_buffer, " ");
 
-                char *msg = strtok(NULL, " ");
+                char *server_name = strtok(NULL, " ");
+
+                net_connect(g_lobby_sink, g_name, server_name);
+
+                snprintf(g_server_monitor, NET_MAX_MSG_LENGTH, "%s", server_name);
+            }
+        } else if (_str_match(input_buffer, "/s")) {
+            if (g_server_connection) {
+                char frame_buffer[NET_MAX_MSG_LENGTH];
+                snprintf(frame_buffer, NET_MAX_MSG_LENGTH, "%s", input_buffer);
+
+                // discard the command token
+                (void)strtok(frame_buffer, " ");
+
+                char *msg = strtok(NULL, "");
                 net_msg(g_server_sink, g_name, msg);
             } else {
                 err("not connected to a server");
             }
         } else if (_str_match(input_buffer, "/w")) {
-            char whisp_buffer[NET_MAX_MSG_LENGTH];
-            strcpy(whisp_buffer, input_buffer);
+            char frame_buffer[NET_MAX_MSG_LENGTH];
+            snprintf(frame_buffer, NET_MAX_MSG_LENGTH, "%s", input_buffer);
 
             // discard the command token
-            (void)strtok(whisp_buffer, " ");
+            (void)strtok(frame_buffer, " ");
 
             char *user = strtok(NULL, " ");
             if (user == NULL) {
@@ -166,7 +193,7 @@ static void _parse_user_input(const char *input_buffer)
                 return;
             }
 
-            char *msg = strtok(NULL, " ");
+            char *msg = strtok(NULL, "");
             if (msg == NULL) {
                 err("*** You must provide a message to send to '%s'.", user);
                 return;
@@ -204,11 +231,14 @@ static void _cleanup()
 
 	usleep(10000);
 
-    nn_shutdown(g_lobby_sub, 0);
+    nn_shutdown(g_lobby_pubsub, 0);
     nn_shutdown(g_lobby_sink, 0);
 
-    if (g_server_connection || g_server) {
-        nn_shutdown(g_server_pub, 0);
+    if (g_server_pubsub != 0) { 
+        nn_shutdown(g_server_pubsub, 0);
+    }
+
+    if (g_server_sink != 0) {
         nn_shutdown(g_server_sink, 0);
     } 
 
@@ -217,21 +247,105 @@ static void _cleanup()
     exit(0);
 }
 
+static void _connect(const char *id)
+{
+    snprintf(g_server_pubsub_addr, NET_MAX_NAME_LENGTH, "tcp://127.0.0.1:%d", BROKER_BASE_SERVER_PUB_PORT + atoi(id));
+    snprintf(g_server_sink_addr, NET_MAX_NAME_LENGTH, "tcp://127.0.0.1:%d", BROKER_BASE_SERVER_SINK_PORT + atoi(id));
+
+    g_server_pubsub = nn_socket(AF_SP, NN_SUB);
+    assert(g_server_pubsub >= 0);
+    assert(nn_setsockopt(g_server_pubsub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
+	assert(nn_connect(g_server_pubsub, g_server_pubsub_addr) >= 0);
+
+    g_server_sink = nn_socket(AF_SP, NN_PUSH);
+    assert(g_server_sink >= 0);
+    assert(nn_connect(g_server_sink, g_server_sink_addr) >= 0);
+    
+    g_server_poll = true;
+
+    log("--- Connecting to '%s' (%s / %s) ...", g_server_monitor, g_server_pubsub_addr, g_server_sink_addr);
+}
+
+static void _read_from_server()
+{
+    char *data = NULL;
+    int bytes = nn_recv(g_server_pubsub, &data, NN_MSG, 0);
+    assert(bytes >= 0);
+
+    g_server_connection = true;
+
+    if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);
+
+    char *user = NET_FIRST_TOKEN(data);
+    char *cmd = NET_NEXT_TOKEN();
+
+    if (strcmp(cmd, NET_MSG) == 0) {
+        char *msg = NET_NEXT_TOKEN();
+        printf("<%s> %s: %s\n", g_server_monitor, user, msg);
+    }
+}
+
+static void _hearthbeat(const char *name)
+{
+    struct connection *client;
+    list_foreach(&g_connected_clients, client) {
+        if (strcmp(client->name, name) == 0) {
+            // found it: keep alive
+            client->alive = 2;
+            return;
+        }
+    }
+
+    client = (struct connection *)malloc(sizeof(struct connection));
+    sprintf(client->name, "%s", name);
+    client->alive = 2;
+    list_add_tail(&g_connected_clients, &client->node);
+    log("==> '%s' connected", client->name);
+}
+
+static void _read_from_sink()
+{
+    char *data = NULL;
+    int bytes = nn_recv(g_server_sink, &data, NN_MSG, 0);
+    assert(bytes >= 0);
+
+    if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);
+    
+    char *user = NET_FIRST_TOKEN(data);
+    char *cmd = NET_NEXT_TOKEN();
+
+    if (strcmp(cmd, NET_PING) == 0) {
+        char *user_type = NET_NEXT_TOKEN();
+        _hearthbeat(user);
+    } else if (strcmp(cmd, NET_MSG) == 0) {
+        char *msg = NET_NEXT_TOKEN();
+        log("%s: '%s'", user, msg);
+        net_msg(g_server_pubsub, user, msg);
+    }
+}
+
 static void _read_from_lobby()
 {
     char *data = NULL;
-    int bytes = nn_recv(g_lobby_sub, &data, NN_MSG, 0);
+    int bytes = nn_recv(g_lobby_pubsub, &data, NN_MSG, 0);
     assert(bytes >= 0);
 
     g_broker_connection = true;
 
-    /*if (strncmp(strstr(data, BROKER_RECORD_SEPARATOR) + strlen(BROKER_RECORD_SEPARATOR), BROKER_PING, 4) != 0) printf("'%s'\n", data);*/
+    /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) printf("'%s'\n", data);*/
 
     char *user = NET_FIRST_TOKEN(data);
     char *cmd = NET_NEXT_TOKEN();
 
     if (strcmp(cmd, NET_PING) == 0) {
-        // ignore
+        if (!g_server_connection && !g_server_poll && strlen(g_server_monitor) && strcmp(g_server_monitor, user) == 0) {
+            char *type = NET_NEXT_TOKEN();
+            char *state = NET_NEXT_TOKEN();
+            char *id = NET_NEXT_TOKEN();
+            char *connections = NET_NEXT_TOKEN();
+
+            _connect(id);
+        }
     } else if (strcmp(cmd, NET_MSG) == 0) {
 		if (!g_server) {
 	        char *msg = NET_NEXT_TOKEN();
@@ -283,11 +397,27 @@ static void _read_from_lobby()
     nn_freemsg(data);
 }
 
+static void _check_connections(list *conn_list)
+{
+    struct connection *conn;
+    list_foreach(conn_list, conn) {
+        conn->alive--;
+
+        if (conn->alive == 0) {
+            log("--- '%s' disconnected", conn->name);
+            list_delete(&conn->node);
+            free(conn);
+        }
+    }
+}
+
 static void _control()
 {
     _ping();
 
     if (g_server) {
+        _check_connections(&g_connected_clients);
+
        if (list_count(&g_connected_clients) == 0) {
            g_shutdown_check += BROKER_KEEP_ALIVE_PERIOD;
        } else {
@@ -298,14 +428,14 @@ static void _control()
 
 static int _poll()
 {
-    struct pollfd nodes[3];
+    struct pollfd nodes[4] = { 0 };
 
     // stdin
     nodes[0].events = POLLIN;
 
     // broker lobby
     size_t fd_size = sizeof(nodes[1].fd);
-    assert(nn_getsockopt(g_lobby_sub, NN_SOL_SOCKET, NN_RCVFD, &nodes[1].fd, &fd_size) == 0);
+    assert(nn_getsockopt(g_lobby_pubsub, NN_SOL_SOCKET, NN_RCVFD, &nodes[1].fd, &fd_size) == 0);
     nodes[1].events = POLLIN;
 
     // hearthbeat
@@ -319,17 +449,27 @@ static int _poll()
     ts.it_value.tv_sec = 0;
     ts.it_value.tv_nsec = 1;
 
+    if (g_server) {
+        // server sink
+        size_t server_sink_fd_size = sizeof(nodes[3].fd);
+        assert(nn_getsockopt(g_server_sink, NN_SOL_SOCKET, NN_RCVFD, &nodes[3].fd, &server_sink_fd_size) == 0);
+        nodes[3].events = POLLIN;
+    } else {
+        // server pubsub is not connected at first for clients, we'll configure it later on
+    }
+
     char input_buffer[g_max_input_length];
-    bool connected = false;
+    bool broker_connected = false;
+    bool server_connected = false;
     for (;;) {
-        if (connected && !g_broker_connection) {
+        if (broker_connected && !g_broker_connection) {
             log("--- Lost connection to lobby, reconnecting ...");
 
             // disable polling on input
             nodes[0].fd = 0;
             // disable hearthbeat timer
             nodes[2].fd = 0;
-        } else if (!connected && g_broker_connection) {
+        } else if (!broker_connected && g_broker_connection) {
             static bool print_once = true;
             log("+++ Connected to lobby !");
             if (!g_server) {
@@ -347,7 +487,22 @@ static int _poll()
             assert(timerfd_settime(nodes[2].fd, 0, &ts, NULL) == 0);
         }
 
-        connected = g_broker_connection;
+        broker_connected = g_broker_connection;
+        
+        if (server_connected && !g_server_connection) {
+            log("--- Lost connection to server");
+        } else if (!server_connected && g_server_connection) {
+            log("+++ Connected to server !");
+        }
+
+        server_connected = g_server_connection;
+
+        if (g_server_poll) {
+            // broker lobby
+            size_t server_pubsub_fd_size = sizeof(nodes[3].fd);
+            assert(nn_getsockopt(g_server_pubsub, NN_SOL_SOCKET, NN_RCVFD, &nodes[3].fd, &server_pubsub_fd_size) == 0);
+            nodes[3].events = POLLIN;
+        }
 
         int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
         if (rc == -1) {
@@ -377,6 +532,14 @@ static int _poll()
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
                 _control();
+            }
+        }
+
+        if (nodes[3].revents & POLLIN) {
+            if (g_server) {
+                _read_from_sink();
+            } else {
+                _read_from_server();
             }
         }
     }
@@ -422,10 +585,10 @@ int main(int argc, char **argv)
 
     log("--- Connecting to %s as %s '%s' ...", g_broker_lobby_addr, g_conn_type, g_name);
 
-    g_lobby_sub = nn_socket(AF_SP, NN_SUB);
-    assert(g_lobby_sub >= 0);
-    assert(nn_setsockopt(g_lobby_sub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-	assert(nn_connect(g_lobby_sub, g_broker_lobby_addr) >= 0);
+    g_lobby_pubsub = nn_socket(AF_SP, NN_SUB);
+    assert(g_lobby_pubsub >= 0);
+    assert(nn_setsockopt(g_lobby_pubsub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
+	assert(nn_connect(g_lobby_pubsub, g_broker_lobby_addr) >= 0);
 
     g_lobby_sink = nn_socket(AF_SP, NN_PUSH);
     assert(g_lobby_sink >= 0);
@@ -434,11 +597,11 @@ int main(int argc, char **argv)
     if (g_server) {
         int server_id = atoi(g_id);
 
-        g_server_pub = nn_socket(AF_SP, NN_PUB);
-        assert(g_server_pub >= 0);
-	    sprintf(g_server_pub_addr, "tcp://*:%d", BROKER_BASE_SERVER_PUB_PORT + server_id);
-        if (nn_bind(g_server_pub, g_server_pub_addr) < 0) {
-            err("Fatal: could not bind pub '%s'", g_server_pub_addr);
+        g_server_pubsub = nn_socket(AF_SP, NN_PUB);
+        assert(g_server_pubsub >= 0);
+	    sprintf(g_server_pubsub_addr, "tcp://*:%d", BROKER_BASE_SERVER_PUB_PORT + server_id);
+        if (nn_bind(g_server_pubsub, g_server_pubsub_addr) < 0) {
+            err("Fatal: could not bind pub '%s'", g_server_pubsub_addr);
             return -1;
         }
 
@@ -450,13 +613,12 @@ int main(int argc, char **argv)
             return -1;
         }
 
-        log("+++ Started (lobby: %s / sink: %s)" , g_server_pub_addr, g_server_sink_addr);
+        log("+++ Started (lobby: %s / sink: %s)" , g_server_pubsub_addr, g_server_sink_addr);
     }
 
     _poll();
 
-    nn_shutdown(g_lobby_sink, 0);
-    nn_shutdown(g_lobby_sub, 0);
+    _cleanup();
 
     return 0;
 }
