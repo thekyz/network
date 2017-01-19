@@ -15,11 +15,12 @@
 #include "net.h"
 #include "log.h"
 #include "broker.h"
-#include "connection.h"
 #include "list.h"
 #include "system.h"
 
-static const int g_max_input_length = 256;      // Max number of chars read from the input
+#define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", g_name, ##__VA_ARGS__);
+#define log(__m, ...)		printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
+
 static const char g_name[] = BROKER_NAME;
 
 // sockets
@@ -44,7 +45,7 @@ static int _send_connection_list(const char *user, const char *type)
         conn_list = &g_servers;
     }
 
-    struct connection *conn;
+    struct net_client *conn;
     list_foreach(conn_list, conn) {
 		net_info(g_lobby, user, info_type, conn->name, conn->state, conn->connections);
     }
@@ -72,6 +73,11 @@ static void _int_handler(int dummy)
     _cleanup();
 }
 
+static void _on_connect(struct net_client *net_client)
+{
+    log("==> '%s' connected", net_client->name);
+}
+
 static void _hearthbeat(const char *conn_type, const char *name, const char *state, const char *id, const char *connections)
 {
     list *conn_list = NULL;
@@ -81,44 +87,12 @@ static void _hearthbeat(const char *conn_type, const char *name, const char *sta
         conn_list = &g_clients;
     }
 
-    struct connection *conn;
-    list_foreach(conn_list, conn) {
-        if (strcmp(conn->name, name) == 0) {
-            // found it: keep alive and update state
-            conn->alive = 2;
-			sprintf(conn->state, "%s", state);
-			sprintf(conn->connections, "%s", connections);
-            return;
-        }
-    }
-
-    conn = (struct connection *)malloc(sizeof(struct connection));
-    sprintf(conn->name, "%s", name);
-	sprintf(conn->state, "%s", state);
-	sprintf(conn->id, "%s", id);
-    sprintf(conn->connections, "%s", connections);
-    conn->alive = 2;
-    list_add_tail(conn_list, &conn->node);
-    log("==> '%s' connected", conn->name);
-}
-
-static void _check_connections(list *conn_list)
-{
-    struct connection *conn;
-    list_foreach(conn_list, conn) {
-        conn->alive--;
-
-        if (conn->alive == 0) {
-            log("--- '%s' disconnected", conn->name);
-            list_delete(&conn->node);
-            free(conn);
-        }
-    }
+    net_hearthbeat(conn_list, name, state, id, connections, _on_connect);
 }
 
 static void _connect_client_to_server(const char *client, const char *server)
 {
-    struct connection *conn;
+    struct net_client *conn;
     list_foreach(&g_servers, conn) {
         if (strncmp(conn->name, server, strlen(conn->name)) == 0 && conn->alive > 0) {
             // server looks alive
@@ -134,6 +108,7 @@ static void _read_from_sink()
     assert(bytes >= 0);
 
     /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);*/
+    /*log("'%s'", data);*/
 
     char *user = NET_FIRST_TOKEN(data);
     char *cmd = NET_NEXT_TOKEN();
@@ -172,7 +147,7 @@ static int _spawn_server()
     char server_id_str[NET_MAX_NAME_LENGTH];
     sprintf(server_id_str, "%d", server_id); 
 
-    char *args[] = { "./conn", "server", "127.0.0.1", server_name, server_id_str, NULL };
+    char *args[] = { "./server", "127.0.0.1", server_name, server_id_str, NULL };
     int rc = exec_cmd(args);
     if (rc == -1) {
         err("Failed to spawn server '%s'", server_name);
@@ -206,10 +181,15 @@ static void _server_control()
     }
 }
 
+static void _on_disconnect(struct net_client *net_client)
+{
+    log("--- '%s' disconnected", net_client->name);
+}
+
 static void _control()
 {
-    _check_connections(&g_servers);
-    _check_connections(&g_clients);
+    net_check_connections(&g_servers, _on_disconnect);
+    net_check_connections(&g_clients, _on_disconnect);
 
     _server_control();
 }
@@ -252,7 +232,6 @@ static int _poll()
     assert(timerfd_settime(nodes[3].fd, 0, &hearthbeat_ts, NULL) == 0);
 
     for (;;) {
-        char input_buffer[g_max_input_length];
         int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
 
         if (rc == -1) {

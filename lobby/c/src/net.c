@@ -1,10 +1,54 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <malloc.h>
 
 #include <nanomsg/nn.h>
 
 #include "net.h"
+
+void net_hearthbeat(list *net_clients, const char *client_name, const char *client_state, const char *client_id, const char *client_connections, net_cb on_connect)
+{
+    struct net_client *net_client;
+    list_foreach(net_clients, net_client) {
+        if (strcmp(net_client->name, client_name) == 0) {
+            // found it: keep alive and update state
+            net_client->alive = 2;
+			sprintf(net_client->state, "%s", client_state);
+			sprintf(net_client->connections, "%s", client_connections);
+            return;
+        }
+    }
+
+    net_client = (struct net_client *)malloc(sizeof(struct net_client));
+    sprintf(net_client->name, "%s", client_name);
+	sprintf(net_client->state, "%s", client_state);
+	sprintf(net_client->id, "%s", client_id);
+    sprintf(net_client->connections, "%s", client_connections);
+    net_client->alive = 2;
+    list_add_tail(net_clients, &net_client->node);
+
+    if (on_connect) {
+        on_connect(net_client);
+    }
+}
+
+void net_check_connections(list *net_clients, net_cb on_disconnect)
+{
+    struct net_client *net_client;
+    list_foreach(net_clients, net_client) {
+        net_client->alive--;
+
+        if (net_client->alive == 0) {
+            if (on_disconnect) {
+                on_disconnect(net_client);
+            }
+
+            list_delete(&net_client->node);
+            free(net_client);
+        }
+    }
+}
 
 #define NRS                                             NET_RECORD_SEPARATOR
 
