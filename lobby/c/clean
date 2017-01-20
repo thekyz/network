@@ -1,0 +1,2 @@
+#!/bin/bash
+find . -iwholename '*cmake*' -not -name CMakeLists.txt -delete
