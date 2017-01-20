@@ -176,6 +176,11 @@ static void _read_from_server()
     }
 }
 
+static void _on_msg(char *user, char *data)
+{
+    printf("<lobby> %s: %s\n", user, data);
+}
+
 static void _on_ping(char *user, char *data)
 {
     if (strcmp(user, "broker") == 0 ) {
@@ -242,6 +247,7 @@ int main(int argc, char **argv)
     snprintf(g_connection.name, CONNECTION_NAME_MAX_LENGTH, "%s", argv[2]);
     snprintf(g_state, NET_MAX_NAME_LENGTH, _CLIENT_MODE_IDLE);
 
+    g_connection.on_msg = _on_msg;
     g_connection.on_ping = _on_ping;
     g_connection.on_info = _on_info;
     g_connection.on_whisp = _on_whisp;
