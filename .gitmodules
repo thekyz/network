@@ -1,3 +1,6 @@
 [submodule "externals/nanomsg"]
 	path = externals/nanomsg
 	url = https://github.com/nanomsg/nanomsg.git
+[submodule "lobby/zmq/lib"]
+	path = lobby/zmq/lib
+	url = https://github.com/zeromq/libzmq
