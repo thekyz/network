@@ -3,9 +3,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/pipeline.h>
-#include <nanomsg/pubsub.h>
+#include <zmq.h>
 
 #include "list.h"
 #include "connection.h"
@@ -31,7 +29,7 @@ static char g_server_sink_addr[NET_MAX_NAME_LENGTH];
 static char g_server_pubsub_addr[NET_MAX_NAME_LENGTH];
 
 // sockets
-static int g_server_pubsub = 0;
+static void *g_server_pubsub = 0;
 
 static list g_connected_clients;
 static bool g_shutdown_validate = false;
@@ -59,8 +57,8 @@ static void _on_connect(struct net_client *net_client)
 
 static void _read_from_sink()
 {
-    char *data = NULL;
-    int bytes = nn_recv(g_connection.secondary_socket, &data, NN_MSG, 0);
+    char data[NET_MAX_MSG_LENGTH];
+    int bytes = zmq_recv(g_connection.secondary_socket, &data, NET_MAX_MSG_LENGTH, 0);
     assert(bytes >= 0);
 
     /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);*/
@@ -133,18 +131,20 @@ int main(int argc, char **argv)
 
     int server_id = atoi(g_id);
 
-    g_server_pubsub = nn_socket(AF_SP, NN_PUB);
+    g_connection.zmq_context = zmq_ctx_new();
+
+    g_server_pubsub = zmq_socket(g_connection.zmq_context, ZMQ_PUB);
     assert(g_server_pubsub >= 0);
     sprintf(g_server_pubsub_addr, "tcp://*:%d", SERVER_BASE_PUB_PORT + server_id);
-    if (nn_bind(g_server_pubsub, g_server_pubsub_addr) < 0) {
+    if (zmq_bind(g_server_pubsub, g_server_pubsub_addr) < 0) {
         err("Fatal: could not bind pub '%s'", g_server_pubsub_addr);
         return -1;
     }
 
-    g_connection.secondary_socket = nn_socket(AF_SP, NN_PULL);
+    g_connection.secondary_socket = zmq_socket(g_connection.zmq_context, ZMQ_PULL);
     assert(g_connection.secondary_socket >= 0);
     sprintf(g_server_sink_addr, "tcp://*:%d", SERVER_BASE_SINK_PORT + server_id);
-    if (nn_bind(g_connection.secondary_socket, g_server_sink_addr) < 0) {
+    if (zmq_bind(g_connection.secondary_socket, g_server_sink_addr) < 0) {
         err("Fatal: could not bind sink '%s'", g_server_sink_addr);
         return -1;
     }

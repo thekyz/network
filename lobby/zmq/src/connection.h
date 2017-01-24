@@ -9,11 +9,13 @@ typedef void (*connection_input_cb)(const char *input_buffer);
 typedef void (*connection_cb)();
 
 struct connection {
-    int lobby_pubsub;
-    int lobby_sink;
+    void *zmq_context;
+
+    void *lobby_pubsub;
+    void *lobby_sink;
     bool lobby_connected;
 
-    int secondary_socket;
+    void *secondary_socket;
     bool secondary_poll;
     bool secondary_connected;
     connection_cb on_secondary;

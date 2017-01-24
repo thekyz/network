@@ -2,15 +2,12 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
-#include <poll.h>
 #include <sys/timerfd.h>
 #include <stdbool.h>
 #include <ctype.h>
 #include <stdlib.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/pipeline.h>
-#include <nanomsg/pubsub.h>
+#include <zmq.h>
 
 #include "net.h"
 #include "log.h"
@@ -34,8 +31,9 @@ void connection_cleanup(struct connection *conn)
 
 	usleep(10000);
 
-    nn_shutdown(conn->lobby_pubsub, 0);
-    nn_shutdown(conn->lobby_sink, 0);
+    zmq_close(conn->lobby_pubsub);
+    zmq_close(conn->lobby_sink);
+    zmq_ctx_destroy(conn->zmq_context);
 
     log("--- Shutting down ...");
 
@@ -44,14 +42,14 @@ void connection_cleanup(struct connection *conn)
 
 static void _read_from_lobby(struct connection *conn)
 {
-    char *msg = NULL;
-    int bytes = nn_recv(conn->lobby_pubsub, &msg, NN_MSG, 0);
+    char msg[NET_MAX_MSG_LENGTH];
+    int bytes = zmq_recv(conn->lobby_pubsub, msg, NET_MAX_MSG_LENGTH, 0);
     assert(bytes >= 0);
 
     conn->lobby_connected = true;
 
     /*if (strncmp(strstr(msg, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", msg);*/
-    /*[>log("'%s'", msg);<]*/
+    /*log("'%s'", msg);*/
 
     char *user = NET_FIRST_TOKEN(msg);
     char *cmd = NET_NEXT_TOKEN();
@@ -82,8 +80,6 @@ static void _read_from_lobby(struct connection *conn)
             conn->on_shutdown(user, data);
         }
     }
-
-    nn_freemsg(msg);
 }
 
 static void _control(struct connection *conn)
@@ -152,32 +148,32 @@ void connection_poll(struct connection *conn, const char *broker_addr)
     char broker_sink_addr[NET_MAX_NAME_LENGTH];
 	snprintf(broker_sink_addr, NET_MAX_NAME_LENGTH, "tcp://%s:%s", broker_addr, BROKER_SINK_PORT);
 
-    conn->lobby_pubsub = nn_socket(AF_SP, NN_SUB);
+    conn->lobby_pubsub = zmq_socket(conn->zmq_context, ZMQ_SUB);
     assert(conn->lobby_pubsub >= 0);
-    assert(nn_setsockopt(conn->lobby_pubsub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-	assert(nn_connect(conn->lobby_pubsub, broker_lobby_addr) >= 0);
+    assert(zmq_setsockopt(conn->lobby_pubsub, ZMQ_SUBSCRIBE, "", 0) >= 0);
+	assert(zmq_connect(conn->lobby_pubsub, broker_lobby_addr) >= 0);
 
-    conn->lobby_sink = nn_socket(AF_SP, NN_PUSH);
+    conn->lobby_sink = zmq_socket(conn->zmq_context, ZMQ_PUSH);
     assert(conn->lobby_sink >= 0);
-    assert(nn_connect(conn->lobby_sink, broker_sink_addr) >= 0);
+    assert(zmq_connect(conn->lobby_sink, broker_sink_addr) >= 0);
 
-    struct pollfd nodes[4] = { 0 };
+    zmq_pollitem_t nodes[4] = { 0 };
 
     // stdin
-    nodes[0].events = POLLIN;
+    nodes[0].fd = STDIN_FILENO;
+                nodes[0].events = ZMQ_POLLIN;
 
     // broker lobby
-    size_t fd_size = sizeof(nodes[1].fd);
-    assert(nn_getsockopt(conn->lobby_pubsub, NN_SOL_SOCKET, NN_RCVFD, &nodes[1].fd, &fd_size) == 0);
-    nodes[1].events = POLLIN;
+    nodes[1].socket = conn->lobby_pubsub;
+    nodes[1].events = ZMQ_POLLIN;
 
     // hearthbeat
     struct itimerspec ts;
     int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     assert(tfd != -1);
-    nodes[2].events = POLLIN;
+    nodes[2].events = ZMQ_POLLIN;
 
-    ts.it_interval.tv_sec = BROKER_KEEP_ALIVE_PERIOD;
+    ts.it_interval.tv_sec = BROKER_HEARTHBEAT_PERIOD;
     ts.it_interval.tv_nsec = 0;
     ts.it_value.tv_sec = 0;
     ts.it_value.tv_nsec = 1;
@@ -191,7 +187,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
             log("--- Lost connection to lobby, reconnecting ...");
 
             // disable polling on input
-            nodes[0].fd = 0;
+            /*nodes[0].events = 0;*/
             // disable hearthbeat timer
             nodes[2].fd = 0;
         } else if (!lobby_connected && conn->lobby_connected) {
@@ -204,7 +200,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
                 }
 
                 // enable polling on input
-                nodes[0].fd = STDIN_FILENO;
+                /*nodes[0].events = ZMQ_POLLIN;*/
             }
 
             // enable hearthbeat timer
@@ -223,16 +219,19 @@ void connection_poll(struct connection *conn, const char *broker_addr)
         secondary_connected = conn->secondary_connected;
 
         if (!secondary_poll && conn->secondary_poll) {
-            size_t secondary_fd_size = sizeof(nodes[3].fd);
-            assert(nn_getsockopt(conn->secondary_socket, NN_SOL_SOCKET, NN_RCVFD, &nodes[3].fd, &secondary_fd_size) == 0);
-            nodes[3].events = POLLIN;
+            nodes[3].socket = conn->secondary_socket;
+            nodes[3].events = ZMQ_POLLIN;
         } else if (secondary_poll && !conn->secondary_poll) {
             nodes[3].events = 0;
         }
 
         secondary_poll = conn->secondary_poll;
 
-        int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
+static int g_log = 0;
+
+        /*int rc = zmq_poll(nodes, sizeof(nodes) / sizeof(zmq_pollitem_t), -1);*/
+        if (g_log) printf("%d\n", __LINE__);
+        int rc = zmq_poll(nodes, 3, -1);
         if (rc == -1) {
             err("poll() error: %s", strerror(errno));
 
@@ -242,28 +241,38 @@ void connection_poll(struct connection *conn, const char *broker_addr)
             continue;
         }
 
-        if (nodes[0].revents & POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
+        if (nodes[0].revents) {
+        if (g_log) printf("%d\n", __LINE__);
+        printf("%d\n", __LINE__);
             memset(input_buffer, 0, sizeof(input_buffer));
             if (_get_user_input(input_buffer, sizeof(input_buffer)) == 0) {
                 conn->on_input(input_buffer);
             }
         }
 
-        if (nodes[1].revents & POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
+        if (nodes[1].revents & ZMQ_POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
             _read_from_lobby(conn);
         }
 
-        if (nodes[2].revents & POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
+        if (nodes[2].revents & ZMQ_POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
             uint64_t res;
             int rc = read(nodes[2].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
+                printf("loop\n");
                 _control(conn);
             }
         }
 
-        if (nodes[3].revents & POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
+        if (nodes[3].revents & ZMQ_POLLIN) {
+        if (g_log) printf("%d\n", __LINE__);
             conn->on_secondary();
         }
     }

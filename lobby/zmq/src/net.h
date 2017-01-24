@@ -51,12 +51,12 @@ typedef void (*net_cb)(struct net_client *);
 void net_hearthbeat(list *net_clients, const char *client_name, const char *client_state, const char *client_id, const char *client_connections, net_cb on_connect);
 void net_check_connections(list *net_client, net_cb on_disconnect);
 
-int net_whisper(int socket, const char *from, const char *to, const char *msg);
-int net_msg(int socket, const char *from, const char *msg);
-int net_list_clients(int socket, const char *from);
-int net_list_servers(int socket, const char *from);
-int net_connect(int socket, const char *from, const char *to);
-int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections);
-int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections);
-int net_shutdown(int socket, const char *from);
+int net_whisper(void *socket, const char *from, const char *to, const char *msg);
+int net_msg(void *socket, const char *from, const char *msg);
+int net_list_clients(void *socket, const char *from);
+int net_list_servers(void *socket, const char *from);
+int net_connect(void *socket, const char *from, const char *to);
+int net_info(void *socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections);
+int net_ping(void *socket, const char *from, const char *type, const char *state, const char *id, const char *connections);
+int net_shutdown(void *socket, const char *from);
 

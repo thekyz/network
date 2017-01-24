@@ -4,13 +4,10 @@
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
-#include <poll.h>
 #include <sys/timerfd.h>
 #include <stdbool.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/pipeline.h>
-#include <nanomsg/pubsub.h>
+#include <zmq.h>
 
 #include "net.h"
 #include "log.h"
@@ -21,11 +18,13 @@
 #define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", g_name, ##__VA_ARGS__);
 #define log(__m, ...)		printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
 
+static void *g_zmq_context = NULL;
+
 static const char g_name[] = BROKER_NAME;
 
 // sockets
-static int g_lobby;
-static int g_sink;
+static void *g_lobby;
+static void *g_sink;
 
 static list g_clients;
 static list g_servers;
@@ -62,8 +61,9 @@ static void _cleanup()
 
 	usleep(10000);
 
-    nn_shutdown(g_sink, 0);
-    nn_shutdown(g_lobby, 0);
+    zmq_close(g_sink);
+    zmq_close(g_lobby);
+    zmq_ctx_destroy(g_zmq_context);
 
     exit(0);
 }
@@ -103,8 +103,8 @@ static void _connect_client_to_server(const char *client, const char *server)
 
 static void _read_from_sink()
 {
-    char *data = NULL;
-    int bytes = nn_recv(g_sink, &data, NN_MSG, 0);
+    char data[NET_MAX_MSG_LENGTH];
+    int bytes = zmq_recv(g_sink, data, NET_MAX_MSG_LENGTH, 0);
     assert(bytes >= 0);
 
     /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);*/
@@ -134,8 +134,6 @@ static void _read_from_sink()
         char *type = NET_NEXT_TOKEN();
         _send_connection_list(user, type);
     }
-
-    nn_freemsg(data);
 }
 
 static int _spawn_server()
@@ -196,21 +194,20 @@ static void _control()
 
 static int _poll()
 {
-    struct pollfd nodes[4];
+    zmq_pollitem_t nodes[4] = { 0 };
 
     // stdin, provisioned, not used yet
     nodes[0].fd = 0;//STDIN_FILENO;
-    nodes[0].events = POLLIN;
+    nodes[0].events = ZMQ_POLLIN;
 
     // broker sink
-    size_t fd_size = sizeof(nodes[1].fd);
-    assert(nn_getsockopt(g_sink, NN_SOL_SOCKET, NN_RCVFD, &nodes[1].fd, &fd_size) == 0);
-    nodes[1].events = POLLIN;
+    nodes[1].socket = g_sink;
+    nodes[1].events = ZMQ_POLLIN;
 
     // keep alive
     struct itimerspec keep_alive_ts;
     nodes[2].fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-    nodes[2].events = POLLIN;
+    nodes[2].events = ZMQ_POLLIN;
     assert(nodes[2].fd != -1);
 
     keep_alive_ts.it_interval.tv_sec = BROKER_KEEP_ALIVE_PERIOD;
@@ -222,7 +219,7 @@ static int _poll()
     // hearthbeat
     struct itimerspec hearthbeat_ts;
     nodes[3].fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-    nodes[3].events = POLLIN;
+    nodes[3].events = ZMQ_POLLIN;
     assert(nodes[3].fd != -1);
 
     hearthbeat_ts.it_interval.tv_sec = BROKER_HEARTHBEAT_PERIOD;
@@ -232,25 +229,25 @@ static int _poll()
     assert(timerfd_settime(nodes[3].fd, 0, &hearthbeat_ts, NULL) == 0);
 
     for (;;) {
-        int rc = poll(nodes, sizeof(nodes) / sizeof(struct pollfd), -1);
+        int rc = zmq_poll(nodes, sizeof(nodes) / sizeof(zmq_pollitem_t), -1);
 
         if (rc == -1) {
-            err("poll(): %s", strerror(errno));
+            err("poll(): %d : %s", errno, strerror(errno));
             return -1;
         } else if (rc == 0) {
             // timeout
             continue;
         }
 
-        if (nodes[0].revents & POLLIN) {
+        if (nodes[0].revents & ZMQ_POLLIN) {
             // no input parser for now ...
         }
 
-        if (nodes[1].revents & POLLIN) {
+        if (nodes[1].revents & ZMQ_POLLIN) {
             _read_from_sink();
         }
 
-        if (nodes[2].revents & POLLIN) {
+        if (nodes[2].revents & ZMQ_POLLIN) {
             uint64_t res;
             int rc = read(nodes[2].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
@@ -260,7 +257,7 @@ static int _poll()
             }
         }
 
-        if (nodes[3].revents & POLLIN) {
+        if (nodes[3].revents & ZMQ_POLLIN) {
             uint64_t res;
             int rc = read(nodes[3].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
@@ -277,16 +274,18 @@ int main(int argc, char **argv)
 {
     signal(SIGINT, _int_handler);
 
+    g_zmq_context = zmq_ctx_new();
+
     list_init(&g_clients);
     list_init(&g_servers);
 
-    g_lobby = nn_socket(AF_SP, NN_PUB);
+    g_lobby = zmq_socket(g_zmq_context, ZMQ_PUB);
     assert(g_lobby >= 0);
-    assert(nn_bind(g_lobby, BROKER_LOBBY) >= 0);
+    assert(zmq_bind(g_lobby, BROKER_LOBBY) >= 0);
 
-    g_sink = nn_socket(AF_SP, NN_PULL);
+    g_sink = zmq_socket(g_zmq_context, ZMQ_PULL);
     assert(g_sink >= 0);
-    assert(nn_bind(g_sink, BROKER_SINK) >= 0);
+    assert(zmq_bind(g_sink, BROKER_SINK) >= 0);
 
     log("+++ Started (lobby: %s / sink: %s)" , BROKER_LOBBY, BROKER_SINK);
 

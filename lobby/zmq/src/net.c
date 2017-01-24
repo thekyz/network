@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <malloc.h>
 
-#include <nanomsg/nn.h>
+#include <zmq.h>
 
 #include "net.h"
 
@@ -13,7 +13,7 @@ void net_hearthbeat(list *net_clients, const char *client_name, const char *clie
     list_foreach(net_clients, net_client) {
         if (strcmp(net_client->name, client_name) == 0) {
             // found it: keep alive and update state
-            net_client->alive = 2;
+            net_client->alive = 1;
 			sprintf(net_client->state, "%s", client_state);
 			sprintf(net_client->connections, "%s", client_connections);
             return;
@@ -25,7 +25,7 @@ void net_hearthbeat(list *net_clients, const char *client_name, const char *clie
 	sprintf(net_client->state, "%s", client_state);
 	sprintf(net_client->id, "%s", client_id);
     sprintf(net_client->connections, "%s", client_connections);
-    net_client->alive = 2;
+    net_client->alive = 1;
     list_add_tail(net_clients, &net_client->node);
 
     if (on_connect) {
@@ -37,8 +37,6 @@ void net_check_connections(list *net_clients, net_cb on_disconnect)
 {
     struct net_client *net_client;
     list_foreach(net_clients, net_client) {
-        net_client->alive--;
-
         if (net_client->alive == 0) {
             if (on_disconnect) {
                 on_disconnect(net_client);
@@ -47,6 +45,8 @@ void net_check_connections(list *net_clients, net_cb on_disconnect)
             list_delete(&net_client->node);
             free(net_client);
         }
+
+        net_client->alive = 0;
     }
 }
 
@@ -61,46 +61,46 @@ void net_check_connections(list *net_clients, net_cb on_disconnect)
 #define _SEND(__s, __f)      ({                                       \
         char buffer[NET_MAX_MSG_LENGTH];                                 \
         int buffer_size = snprintf(buffer, NET_MAX_MSG_LENGTH - 1, __f); \
-        int bytes = nn_send(__s, buffer, buffer_size + 1, 0);               \
+        int bytes = zmq_send(__s, buffer, buffer_size + 1, 0);               \
         assert(bytes == buffer_size + 1);                                   \
         bytes; })
 
-inline int net_whisper(int socket, const char *from, const char *to, const char *msg)
+inline int net_whisper(void *socket, const char *from, const char *to, const char *msg)
 {
     return _SEND(socket, _FORMAT_ARGS2(from, NET_WHISP, to, msg));
 }
 
-inline int net_msg(int socket, const char *from, const char *msg)
+inline int net_msg(void *socket, const char *from, const char *msg)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_MSG, msg));
 }
 
-inline int net_list_clients(int socket, const char *from)
+inline int net_list_clients(void *socket, const char *from)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_LIST, NET_LIST_CLIENTS));
 }
 
-inline int net_list_servers(int socket, const char *from)
+inline int net_list_servers(void *socket, const char *from)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_LIST, NET_LIST_SERVERS));
 }
 
-inline int net_info(int socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections)
+inline int net_info(void *socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections)
 {
 	return _SEND(socket, _FORMAT_ARGS4(from, NET_INFO, conn_type, name, state, connections));
 }
 
-inline int net_connect(int socket, const char *from, const char *to)
+inline int net_connect(void *socket, const char *from, const char *to)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_CONNECT, to));
 }
 
-inline int net_ping(int socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
+inline int net_ping(void *socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
 {
     return _SEND(socket, _FORMAT_ARGS4(from, NET_PING, type, state, id, connections));
 }
 
-inline int net_shutdown(int socket, const char *from)
+inline int net_shutdown(void *socket, const char *from)
 {
 	return _SEND(socket, _FORMAT_ARGS0(from, NET_SHUTDOWN));
 }

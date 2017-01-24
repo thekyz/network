@@ -4,9 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/pipeline.h>
-#include <nanomsg/pubsub.h>
+#include <zmq.h>
 
 #include "list.h"
 #include "connection.h"
@@ -27,7 +25,7 @@ static char g_state[NET_MAX_NAME_LENGTH];
 static char g_server_sink_addr[NET_MAX_NAME_LENGTH];
 static char g_server_pubsub_addr[NET_MAX_NAME_LENGTH];
 
-static int g_server_sink = 0;
+static void *g_server_sink = 0;
 
 // ongoing requests
 static bool g_list_clients = false;
@@ -142,14 +140,14 @@ static void _connect(const char *id)
     snprintf(g_server_pubsub_addr, NET_MAX_NAME_LENGTH, "tcp://127.0.0.1:%d", SERVER_BASE_PUB_PORT + atoi(id));
     snprintf(g_server_sink_addr, NET_MAX_NAME_LENGTH, "tcp://127.0.0.1:%d", SERVER_BASE_SINK_PORT + atoi(id));
 
-    g_connection.secondary_socket = nn_socket(AF_SP, NN_SUB);
+    g_connection.secondary_socket = zmq_socket(g_connection.zmq_context, ZMQ_SUB);
     assert(g_connection.secondary_socket >= 0);
-    assert(nn_setsockopt(g_connection.secondary_socket, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-	assert(nn_connect(g_connection.secondary_socket, g_server_pubsub_addr) >= 0);
+    assert(zmq_setsockopt(g_connection.secondary_socket, ZMQ_SUBSCRIBE, "", 0) >= 0);
+	assert(zmq_connect(g_connection.secondary_socket, g_server_pubsub_addr) >= 0);
 
-    g_server_sink = nn_socket(AF_SP, NN_PUSH);
+    g_server_sink = zmq_socket(g_connection.zmq_context, ZMQ_PUSH);
     assert(g_server_sink >= 0);
-    assert(nn_connect(g_server_sink, g_server_sink_addr) >= 0);
+    assert(zmq_connect(g_server_sink, g_server_sink_addr) >= 0);
     
     g_connection.secondary_poll = true;
 
@@ -158,8 +156,8 @@ static void _connect(const char *id)
 
 static void _read_from_server()
 {
-    char *data = NULL;
-    int bytes = nn_recv(g_connection.secondary_socket, &data, NN_MSG, 0);
+    char data[NET_MAX_MSG_LENGTH];
+    int bytes = zmq_recv(g_connection.secondary_socket, &data, NET_MAX_MSG_LENGTH, 0);
     assert(bytes >= 0);
 
     g_connection.secondary_connected = true;
@@ -246,6 +244,8 @@ int main(int argc, char **argv)
 
     snprintf(g_connection.name, CONNECTION_NAME_MAX_LENGTH, "%s", argv[2]);
     snprintf(g_state, NET_MAX_NAME_LENGTH, _CLIENT_MODE_IDLE);
+
+    g_connection.zmq_context = zmq_ctx_new();
 
     g_connection.on_msg = _on_msg;
     g_connection.on_ping = _on_ping;
