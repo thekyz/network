@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cmake -DCMAKE_BUILD_TYPE=Debug src/
-echo "--- Use the 'directory src' command in gdb for proper backtracing information."
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+echo "--- Use the 'directory ../src' command in gdb for proper backtracing information."

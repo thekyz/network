@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 2.6)
 project(lobby)
 
+set(CMAKE_C_COMPILER ${CMAKE_CXX_COMPILER})
+include_directories(${CMAKE_BINARY_DIR}/libs/include)
+
+find_library(ZMQ_LIB NAMES libzmq-static.a PATHS ${CMAKE_BINARY_DIR}/libs/lib)
+
 add_library(net
     net.c
 )
@@ -14,12 +19,13 @@ add_library(system
 )
 
 add_executable(broker
+    net.c
     broker.c
 )
 target_link_libraries(broker
-    net
     system
-    zmq
+    ${ZMQ_LIB}
+    pthread
 )
 
 add_executable(server
@@ -28,7 +34,8 @@ add_executable(server
 target_link_libraries(server
     connection
     net
-    zmq
+    ${ZMQ_LIB}
+    pthread
 )
 
 add_executable(client
@@ -37,6 +44,11 @@ add_executable(client
 target_link_libraries(client
     connection
     net
-    zmq
+    ${ZMQ_LIB}
+    pthread
 )
 
+# Forces c++ linker
+set_target_properties(broker${DEBUGEXT} PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(server${DEBUGEXT} PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(client${DEBUGEXT} PROPERTIES LINKER_LANGUAGE CXX)
