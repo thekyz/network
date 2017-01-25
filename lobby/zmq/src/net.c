@@ -65,42 +65,42 @@ void net_check_connections(list *net_clients, net_cb on_disconnect)
         assert(bytes == buffer_size + 1);                                   \
         bytes; })
 
-inline int net_whisper(void *socket, const char *from, const char *to, const char *msg)
+int net_whisper(void *socket, const char *from, const char *to, const char *msg)
 {
     return _SEND(socket, _FORMAT_ARGS2(from, NET_WHISP, to, msg));
 }
 
-inline int net_msg(void *socket, const char *from, const char *msg)
+int net_msg(void *socket, const char *from, const char *msg)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_MSG, msg));
 }
 
-inline int net_list_clients(void *socket, const char *from)
+int net_list_clients(void *socket, const char *from)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_LIST, NET_LIST_CLIENTS));
 }
 
-inline int net_list_servers(void *socket, const char *from)
+int net_list_servers(void *socket, const char *from)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_LIST, NET_LIST_SERVERS));
 }
 
-inline int net_info(void *socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections)
+int net_info(void *socket, const char *from, const char *conn_type, const char *name, const char *state, const char *connections)
 {
 	return _SEND(socket, _FORMAT_ARGS4(from, NET_INFO, conn_type, name, state, connections));
 }
 
-inline int net_connect(void *socket, const char *from, const char *to)
+int net_connect(void *socket, const char *from, const char *to)
 {
     return _SEND(socket, _FORMAT_ARGS1(from, NET_CONNECT, to));
 }
 
-inline int net_ping(void *socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
+int net_ping(void *socket, const char *from, const char *type, const char *state, const char *id, const char *connections)
 {
     return _SEND(socket, _FORMAT_ARGS4(from, NET_PING, type, state, id, connections));
 }
 
-inline int net_shutdown(void *socket, const char *from)
+int net_shutdown(void *socket, const char *from)
 {
 	return _SEND(socket, _FORMAT_ARGS0(from, NET_SHUTDOWN));
 }

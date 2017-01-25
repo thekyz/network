@@ -161,7 +161,6 @@ void connection_poll(struct connection *conn, const char *broker_addr)
 
     // stdin
     nodes[0].fd = STDIN_FILENO;
-                nodes[0].events = ZMQ_POLLIN;
 
     // broker lobby
     nodes[1].socket = conn->lobby_pubsub;
@@ -187,7 +186,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
             log("--- Lost connection to lobby, reconnecting ...");
 
             // disable polling on input
-            /*nodes[0].events = 0;*/
+            nodes[0].events = 0;
             // disable hearthbeat timer
             nodes[2].fd = 0;
         } else if (!lobby_connected && conn->lobby_connected) {
@@ -200,7 +199,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
                 }
 
                 // enable polling on input
-                /*nodes[0].events = ZMQ_POLLIN;*/
+                nodes[0].events = ZMQ_POLLIN;
             }
 
             // enable hearthbeat timer
@@ -227,10 +226,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
 
         secondary_poll = conn->secondary_poll;
 
-static int g_log = 0;
-
         /*int rc = zmq_poll(nodes, sizeof(nodes) / sizeof(zmq_pollitem_t), -1);*/
-        if (g_log) printf("%d\n", __LINE__);
         int rc = zmq_poll(nodes, 3, -1);
         if (rc == -1) {
             err("poll() error: %s", strerror(errno));
@@ -241,38 +237,28 @@ static int g_log = 0;
             continue;
         }
 
-        if (g_log) printf("%d\n", __LINE__);
         if (nodes[0].revents) {
-        if (g_log) printf("%d\n", __LINE__);
-        printf("%d\n", __LINE__);
             memset(input_buffer, 0, sizeof(input_buffer));
             if (_get_user_input(input_buffer, sizeof(input_buffer)) == 0) {
                 conn->on_input(input_buffer);
             }
         }
 
-        if (g_log) printf("%d\n", __LINE__);
         if (nodes[1].revents & ZMQ_POLLIN) {
-        if (g_log) printf("%d\n", __LINE__);
             _read_from_lobby(conn);
         }
 
-        if (g_log) printf("%d\n", __LINE__);
         if (nodes[2].revents & ZMQ_POLLIN) {
-        if (g_log) printf("%d\n", __LINE__);
             uint64_t res;
             int rc = read(nodes[2].fd, &res, sizeof(res));
             if (rc == -1 && errno != EAGAIN) {
                 err("read() error on timerfd: %s", strerror(errno));
             } else {
-                printf("loop\n");
                 _control(conn);
             }
         }
 
-        if (g_log) printf("%d\n", __LINE__);
         if (nodes[3].revents & ZMQ_POLLIN) {
-        if (g_log) printf("%d\n", __LINE__);
             conn->on_secondary();
         }
     }

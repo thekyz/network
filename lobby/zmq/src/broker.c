@@ -33,7 +33,7 @@ static int g_next_server_id = 0;
 
 static int _send_connection_list(const char *user, const char *type)
 {
-    char *info_type = NULL;
+    const char *info_type = NULL;
     list *conn_list = NULL;
 
     if (strcmp(type, NET_LIST_CLIENTS) == 0) {
@@ -145,7 +145,7 @@ static int _spawn_server()
     char server_id_str[NET_MAX_NAME_LENGTH];
     sprintf(server_id_str, "%d", server_id); 
 
-    char *args[] = { "./server", "127.0.0.1", server_name, server_id_str, NULL };
+    char *args[] = { (char *)"./server", (char *)"127.0.0.1", server_name, server_id_str, NULL };
     int rc = exec_cmd(args);
     if (rc == -1) {
         err("Failed to spawn server '%s'", server_name);
