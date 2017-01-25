@@ -1,10 +1,9 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 project(lobby)
 
 set(CMAKE_C_COMPILER ${CMAKE_CXX_COMPILER})
 include_directories(${CMAKE_BINARY_DIR}/libs/include)
-
-find_library(ZMQ_LIB NAMES libzmq-static.a PATHS ${CMAKE_BINARY_DIR}/libs/lib)
+link_directories(${CMAKE_BINARY_DIR}/libs/lib)
 
 add_library(net
     net.c
@@ -19,12 +18,15 @@ add_library(system
 )
 
 add_executable(broker
-    net.c
     broker.c
 )
+add_dependencies(broker
+    libzmq
+)
 target_link_libraries(broker
+    net
     system
-    ${ZMQ_LIB}
+    zmq-static
     pthread
 )
 
@@ -34,7 +36,7 @@ add_executable(server
 target_link_libraries(server
     connection
     net
-    ${ZMQ_LIB}
+    zmq-static
     pthread
 )
 
@@ -44,7 +46,7 @@ add_executable(client
 target_link_libraries(client
     connection
     net
-    ${ZMQ_LIB}
+    zmq-static
     pthread
 )
 

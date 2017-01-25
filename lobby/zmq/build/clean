@@ -1,4 +1,6 @@
 #!/bin/bash
-make clean
+[ -s Makefile ] && make clean
+
 find . -iwholename '*cmake*' -not -name CMakeLists.txt -delete
-rm Makefile
+rm -rf libs libzmq src
+rm Makefile -f

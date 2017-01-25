@@ -27,12 +27,12 @@ static struct connection *g_connection;
 
 void connection_cleanup(struct connection *conn)
 {
-	// spam the shutdown message a bit ...
-	for (int i = 0; i < 5; i++) {
+    // spam the shutdown message a bit ...
+    for (int i = 0; i < 5; i++) {
         net_shutdown(conn->lobby_sink, conn->name);
-	}
+    }
 
-	usleep(10000);
+    usleep(10000);
 
     nn_shutdown(conn->lobby_pubsub, 0);
     nn_shutdown(conn->lobby_sink, 0);
@@ -51,7 +51,7 @@ static void _read_from_lobby(struct connection *conn)
     conn->lobby_connected = true;
 
     /*if (strncmp(strstr(msg, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", msg);*/
-    /*[>log("'%s'", msg);<]*/
+    /*log("'%s'", msg);*/
 
     char *user = NET_FIRST_TOKEN(msg);
     char *cmd = NET_NEXT_TOKEN();

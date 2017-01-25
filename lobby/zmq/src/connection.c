@@ -24,12 +24,12 @@ static struct connection *g_connection;
 
 void connection_cleanup(struct connection *conn)
 {
-	// spam the shutdown message a bit ...
-	for (int i = 0; i < 5; i++) {
+    // spam the shutdown message a bit ...
+    for (int i = 0; i < 5; i++) {
         net_shutdown(conn->lobby_sink, conn->name);
-	}
+    }
 
-	usleep(10000);
+    usleep(10000);
 
     zmq_close(conn->lobby_pubsub);
     zmq_close(conn->lobby_sink);
@@ -226,8 +226,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
 
         secondary_poll = conn->secondary_poll;
 
-        /*int rc = zmq_poll(nodes, sizeof(nodes) / sizeof(zmq_pollitem_t), -1);*/
-        int rc = zmq_poll(nodes, 3, -1);
+        int rc = zmq_poll(nodes, sizeof(nodes) / sizeof(zmq_pollitem_t), -1);
         if (rc == -1) {
             err("poll() error: %s", strerror(errno));
 

@@ -34,7 +34,7 @@ static int g_next_server_id = 0;
 
 static int _send_connection_list(const char *user, const char *type)
 {
-    char *info_type = NULL;
+    const char *info_type = NULL;
     list *conn_list = NULL;
 
     if (strcmp(type, NET_LIST_CLIENTS) == 0) {

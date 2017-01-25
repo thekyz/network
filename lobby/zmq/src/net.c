@@ -14,8 +14,8 @@ void net_hearthbeat(list *net_clients, const char *client_name, const char *clie
         if (strcmp(net_client->name, client_name) == 0) {
             // found it: keep alive and update state
             net_client->alive = 1;
-			sprintf(net_client->state, "%s", client_state);
-			sprintf(net_client->connections, "%s", client_connections);
+            sprintf(net_client->state, "%s", client_state);
+            sprintf(net_client->connections, "%s", client_connections);
             return;
         }
     }
