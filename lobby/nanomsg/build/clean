@@ -1,0 +1,6 @@
+#!/bin/bash
+[ -s Makefile ] && make clean
+
+find . -iwholename '*cmake*' -not -name CMakeLists.txt -delete
+rm -rf libs libnanomsg src
+rm Makefile -f
