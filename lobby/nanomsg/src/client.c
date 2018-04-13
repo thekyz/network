@@ -14,11 +14,11 @@
 #include "server.h"
 #include "broker.h"
 
-#define _CLIENT_MODE_IDLE	"idle"
-#define _CLIENT_MODE_READY	"ready"
+#define _CLIENT_MODE_IDLE   "idle"
+#define _CLIENT_MODE_READY  "ready"
 
-#define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", g_connection.name, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%s] " __m "\n", g_connection.name, ##__VA_ARGS__);
+#define err(__m, ...)       fprintf(stderr, "[%s] Error: " __m "\n", g_connection.name, ##__VA_ARGS__);
+#define log(__m, ...)       printf("[%s] " __m "\n", g_connection.name, ##__VA_ARGS__);
 
 // connection info
 static struct connection g_connection = {0};
@@ -36,10 +36,10 @@ static bool g_list_servers = false;
 static void _ping()
 {
     char connections[NET_MAX_NAME_LENGTH] = "lobby";
-        
+
     if (g_connection.secondary_connected) {
         snprintf(connections, NET_MAX_NAME_LENGTH, "%s", g_connection.secondary_name);
-        
+
         net_ping(g_server_sink, g_connection.name, NET_PING_CLIENT, g_state, NET_NA, connections);
     }
 
@@ -57,7 +57,7 @@ static void _parse_user_input(const char *input_buffer)
             log("  /join <s>       Join server <s>");
             log("  /leave          Leave the current server <s>");
             log("  /s <m>          Send the message <m> in the server chatroom");
-            log("  /ready		   Toggle ready mode (only in server rooms)")
+            log("  /ready          Toggle ready mode (only in server rooms)")
             log("  /clients        Show the clients currently in the lobby (and connected server room)");
             log("  /w <u> <m>      Send the message <m> to client <u>");
         } else if (_str_match(input_buffer, "/clients")) {
@@ -145,12 +145,12 @@ static void _connect(const char *id)
     g_connection.secondary_socket = nn_socket(AF_SP, NN_SUB);
     assert(g_connection.secondary_socket >= 0);
     assert(nn_setsockopt(g_connection.secondary_socket, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-	assert(nn_connect(g_connection.secondary_socket, g_server_pubsub_addr) >= 0);
+    assert(nn_connect(g_connection.secondary_socket, g_server_pubsub_addr) >= 0);
 
     g_server_sink = nn_socket(AF_SP, NN_PUSH);
     assert(g_server_sink >= 0);
     assert(nn_connect(g_server_sink, g_server_sink_addr) >= 0);
-    
+
     g_connection.secondary_poll = true;
 
     log("--- Connecting to '%s' (%s / %s) ...", g_connection.secondary_name, g_server_pubsub_addr, g_server_sink_addr);
@@ -233,14 +233,14 @@ static void _on_info(char *user, char *data)
 
 static void _usage(const char *app)
 {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "   %s <broker_addr> <name>\n", app);
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "   %s <broker_addr> <name>\n", app);
 }
 
 int main(int argc, char **argv)
 {
     if (argc < 3) {
-		_usage(argv[0]);
+        _usage(argv[0]);
         return -1;
     }
 
@@ -261,4 +261,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

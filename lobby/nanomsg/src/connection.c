@@ -18,8 +18,8 @@
 #include "list.h"
 #include "connection.h"
 
-#define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", conn->name, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%s] " __m "\n", conn->name, ##__VA_ARGS__);
+#define err(__m, ...)       fprintf(stderr, "[%s] Error: " __m "\n", conn->name, ##__VA_ARGS__);
+#define log(__m, ...)       printf("[%s] " __m "\n", conn->name, ##__VA_ARGS__);
 
 static const int g_max_input_length = 256;      // Max number of chars read from the input
 
@@ -77,7 +77,7 @@ static void _read_from_lobby(struct connection *conn)
         if (strcmp(user, BROKER_NAME) == 0) {
             conn->lobby_connected = false;
         }
-        
+
         if (conn->on_shutdown) {
             conn->on_shutdown(user, data);
         }
@@ -113,7 +113,7 @@ static ptrdiff_t _strn_trim(char *str, ptrdiff_t max_chars)
     *(++last) = '\0';
 
     return (c - last);
-}                           
+}
 
 static int _get_user_input(char *buffer, size_t buffer_length)
 {
@@ -132,12 +132,12 @@ static int _get_user_input(char *buffer, size_t buffer_length)
         while ((c = getchar()) != '\n' && c != EOF) {}
     }
 
-	// TODO use ncurses to NOT deal with all of this ...
+    // TODO use ncurses to NOT deal with all of this ...
 
-	_strn_trim(buffer, g_max_input_length);
-	if (strlen(buffer) == 0) {
-		return -1;
-	}
+    _strn_trim(buffer, g_max_input_length);
+    if (strlen(buffer) == 0) {
+        return -1;
+    }
 
     return 0;
 }
@@ -148,14 +148,14 @@ void connection_poll(struct connection *conn, const char *broker_addr)
     conn->lobby_connected = false;
 
     char broker_lobby_addr[NET_MAX_NAME_LENGTH];
-	snprintf(broker_lobby_addr, NET_MAX_NAME_LENGTH, "tcp://%s:%s", broker_addr, BROKER_LOBBY_PORT);
+    snprintf(broker_lobby_addr, NET_MAX_NAME_LENGTH, "tcp://%s:%s", broker_addr, BROKER_LOBBY_PORT);
     char broker_sink_addr[NET_MAX_NAME_LENGTH];
-	snprintf(broker_sink_addr, NET_MAX_NAME_LENGTH, "tcp://%s:%s", broker_addr, BROKER_SINK_PORT);
+    snprintf(broker_sink_addr, NET_MAX_NAME_LENGTH, "tcp://%s:%s", broker_addr, BROKER_SINK_PORT);
 
     conn->lobby_pubsub = nn_socket(AF_SP, NN_SUB);
     assert(conn->lobby_pubsub >= 0);
     assert(nn_setsockopt(conn->lobby_pubsub, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) >= 0);
-	assert(nn_connect(conn->lobby_pubsub, broker_lobby_addr) >= 0);
+    assert(nn_connect(conn->lobby_pubsub, broker_lobby_addr) >= 0);
 
     conn->lobby_sink = nn_socket(AF_SP, NN_PUSH);
     assert(conn->lobby_sink >= 0);
@@ -213,7 +213,7 @@ void connection_poll(struct connection *conn, const char *broker_addr)
         }
 
         lobby_connected = conn->lobby_connected;
-        
+
         if (secondary_connected && !conn->secondary_connected) {
             log("--- Lost connection to '%s'", conn->secondary_name);
         } else if (!secondary_connected && conn->secondary_connected) {
@@ -268,4 +268,3 @@ void connection_poll(struct connection *conn, const char *broker_addr)
         }
     }
 }
-

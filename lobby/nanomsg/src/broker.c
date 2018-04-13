@@ -18,8 +18,8 @@
 #include "list.h"
 #include "system.h"
 
-#define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", g_name, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
+#define err(__m, ...)       fprintf(stderr, "[%s] Error: " __m "\n", g_name, ##__VA_ARGS__);
+#define log(__m, ...)       printf("[%s] " __m "\n", g_name, ##__VA_ARGS__);
 
 static const char g_name[] = BROKER_NAME;
 
@@ -47,20 +47,20 @@ static int _send_connection_list(const char *user, const char *type)
 
     struct net_client *conn;
     list_foreach(conn_list, conn) {
-		net_info(g_lobby, user, info_type, conn->name, conn->state, conn->connections);
+        net_info(g_lobby, user, info_type, conn->name, conn->state, conn->connections);
     }
 
-	return net_info(g_lobby, user, NET_INFO_END, info_type, "-", "-");
+    return net_info(g_lobby, user, NET_INFO_END, info_type, "-", "-");
 }
 
 static void _cleanup()
 {
-	// spam the shutdown message a bit ...
-	for (int i = 0; i < 5; i++) {
-	    net_shutdown(g_lobby, BROKER_NAME);
-	}
+    // spam the shutdown message a bit ...
+    for (int i = 0; i < 5; i++) {
+        net_shutdown(g_lobby, BROKER_NAME);
+    }
 
-	usleep(10000);
+    usleep(10000);
 
     nn_shutdown(g_sink, 0);
     nn_shutdown(g_lobby, 0);
@@ -115,8 +115,8 @@ static void _read_from_sink()
 
     if (strcmp(cmd, NET_PING) == 0) {
         char *user_type = NET_NEXT_TOKEN();
-		char *state = NET_NEXT_TOKEN();
-		char *id = NET_NEXT_TOKEN();
+        char *state = NET_NEXT_TOKEN();
+        char *id = NET_NEXT_TOKEN();
         char *connections = NET_NEXT_TOKEN();
         _hearthbeat(user_type, user, state, id, connections);
     } else if (strcmp(cmd, NET_CONNECT) == 0) {
@@ -145,7 +145,7 @@ static int _spawn_server()
     char server_name[NET_MAX_NAME_LENGTH];
     sprintf(server_name, "%s%03d", "server-", server_id);
     char server_id_str[NET_MAX_NAME_LENGTH];
-    sprintf(server_id_str, "%d", server_id); 
+    sprintf(server_id_str, "%d", server_id);
 
     char *args[] = { "./server", "127.0.0.1", server_name, server_id_str, NULL };
     int rc = exec_cmd(args);
@@ -295,4 +295,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

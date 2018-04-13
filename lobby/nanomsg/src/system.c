@@ -28,4 +28,3 @@ int exec_cmd(char *argv[])
 
     return 0;
 }
-

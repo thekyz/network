@@ -51,4 +51,3 @@ target_link_libraries(client
     pthread
     anl
 )
-

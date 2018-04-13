@@ -7,4 +7,3 @@ include(ExternalProject)
 include(libs/nn.cmake)
 
 add_subdirectory(src)
-
