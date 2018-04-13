@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(lobby)
 
 include_directories(${CMAKE_BINARY_DIR}/libs/include)
-link_directories(${CMAKE_BINARY_DIR}/libs/lib64)
+link_directories(${CMAKE_BINARY_DIR}/libs/lib)
 
 add_library(net
     net.c
