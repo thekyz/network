@@ -1,4 +1,3 @@
-
 set(ZMQ_PREFIX libzmq)
 set(ZMQ_GITHUB https://github.com/zeromq/libzmq)
 set(ZMQ_VERSION v4.2.1)
@@ -10,4 +9,3 @@ ExternalProject_Add(
     GIT_TAG ${ZMQ_VERSION}
     CMAKE_ARGS -DZMQ_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/libs
 )
-

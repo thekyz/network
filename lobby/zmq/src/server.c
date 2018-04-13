@@ -12,11 +12,11 @@
 #include "broker.h"
 #include "server.h"
 
-#define _SERVER_MODE_GAME	"game"
-#define _SERVER_MODE_CHAT	"chat"
+#define _SERVER_MODE_GAME   "game"
+#define _SERVER_MODE_CHAT   "chat"
 
-#define err(__m, ...)		fprintf(stderr, "[%s] Error: " __m "\n", g_connection.name, ##__VA_ARGS__);
-#define log(__m, ...)		printf("[%s] " __m "\n", g_connection.name, ##__VA_ARGS__);
+#define err(__m, ...)       fprintf(stderr, "[%s] Error: " __m "\n", g_connection.name, ##__VA_ARGS__);
+#define log(__m, ...)       printf("[%s] " __m "\n", g_connection.name, ##__VA_ARGS__);
 
 // connection info
 static struct connection g_connection = {0};
@@ -63,14 +63,14 @@ static void _read_from_sink()
 
     /*if (strncmp(strstr(data, NET_RECORD_SEPARATOR) + strlen(NET_RECORD_SEPARATOR), NET_PING, 4) != 0) log("'%s'", data);*/
     /*log("'%s'", data);*/
-    
+
     char *user = NET_FIRST_TOKEN(data);
     char *cmd = NET_NEXT_TOKEN();
 
     if (strcmp(cmd, NET_PING) == 0) {
         char *user_type = NET_NEXT_TOKEN();
-		char *state = NET_NEXT_TOKEN();
-		char *id = NET_NEXT_TOKEN();
+        char *state = NET_NEXT_TOKEN();
+        char *id = NET_NEXT_TOKEN();
         char *connections = NET_NEXT_TOKEN();
         net_hearthbeat(&g_connected_clients, user, state, id, connections, _on_connect);
     } else if (strcmp(cmd, NET_MSG) == 0) {
@@ -111,14 +111,14 @@ static void _on_control()
 
 static void _usage(const char *app)
 {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "   %s <broker_addr> <name> <id>\n", app);
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "   %s <broker_addr> <name> <id>\n", app);
 }
 
 int main(int argc, char **argv)
 {
     if (argc < 4) {
-		_usage(argv[0]);
+        _usage(argv[0]);
         return -1;
     }
 
@@ -162,4 +162,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

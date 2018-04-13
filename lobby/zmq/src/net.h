@@ -30,7 +30,7 @@
 #define NET_INFO                                "info"
 #define NET_INFO_CLIENTS                        "clients"
 #define NET_INFO_SERVERS                        "servers"
-#define NET_INFO_END							"end"
+#define NET_INFO_END                            "end"
 
 #define NET_PING                                "ping"
 #define NET_PING_BROKER                         "broker"
@@ -41,8 +41,8 @@ struct net_client {
     list node;
     char name[NET_MAX_NAME_LENGTH];
     int alive;
-	char state[NET_MAX_NAME_LENGTH];
-	char id[NET_MAX_NAME_LENGTH];
+    char state[NET_MAX_NAME_LENGTH];
+    char id[NET_MAX_NAME_LENGTH];
     char connections[NET_MAX_NAME_LENGTH];
 };
 

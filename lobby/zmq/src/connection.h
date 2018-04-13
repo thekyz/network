@@ -35,4 +35,3 @@ struct connection {
 
 void connection_cleanup(struct connection *conn);
 void connection_poll(struct connection *conn, const char *broker_addr);
-

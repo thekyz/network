@@ -82,4 +82,3 @@ static inline int list_count(list *l)
 
     return count;
 }
-
